@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>青森県市町村コロプレスツール</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Leaflet.js CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <!-- Application CSS -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="logo-area">
+      <div class="logo-icon">
+        <i class="fa-solid fa-map-location-dot"></i>
+      </div>
+      <div class="logo-text">
+        <h1>青森県市町村コロプレスツール</h1>
+      </div>
+    </div>
+    
+    <div class="header-actions">
+      <!-- Direct Variable Selector in Header -->
+      <div class="d-flex align-items-center gap-2">
+        <label for="select-variable-header" class="text-muted fw-bold d-none d-md-inline" style="font-size: 0.82rem; white-space: nowrap;">
+          <i class="fa-solid fa-chart-pie text-blue"></i> 作図項目:
+        </label>
+        <select id="select-variable-header" class="form-control form-control-sm header-variable-select" title="作図する統計項目を選択">
+          <!-- Populated by JS -->
+        </select>
+      </div>
+
+      <button id="btn-reset" class="btn btn-outline" title="初期状態に戻す">
+        <i class="fa-solid fa-rotate-left"></i> リセット
+      </button>
+
+      <button id="btn-copy-png-header" class="btn btn-secondary" title="クリップボードにPNG画像をコピー">
+        <i class="fa-regular fa-copy"></i> 画像コピー
+      </button>
+
+      <button id="btn-export-png-header" class="btn btn-primary" title="PNG画像を保存">
+        <i class="fa-solid fa-download"></i> マップ保存 (PNG)
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="app-workspace">
+
+    <!-- Step 1: Data Input -->
+    <section id="step1-data" class="step-container active">
+      <div class="step-content" style="max-width: 960px; margin: 0 auto; padding: 24px 20px 60px;">
+        
+        <div class="step-intro text-center mb-3">
+          <h2><i class="fa-solid fa-1"></i> データ読み込み・入力</h2>
+          <p class="text-muted">CSVファイルの読み込み、テキスト貼り付け、または表への直接入力でデータを設定します。</p>
+        </div>
+
+        <!-- CSV Upload & Batch Text Paste -->
+        <div class="card mb-4">
+          <div class="card-header flex-between">
+            <h3><i class="fa-solid fa-file-import"></i> CSVファイル / テキスト一括読み込み</h3>
+            <span class="text-muted" style="font-size:0.78rem;">※複数変数のCSVにも自動対応</span>
+          </div>
+          <div class="card-body">
+            <div id="drop-zone" class="drop-zone">
+              <i class="fa-solid fa-cloud-arrow-up drop-icon"></i>
+              <p>CSV / TSV ファイルをここにドラッグ＆ドロップ<br>または <span>ファイルを選択</span></p>
+              <input type="file" id="file-input" accept=".csv,.tsv,.txt" hidden>
+            </div>
+
+            <div class="form-group mt-3">
+              <label for="raw-paste-input">テキスト一括貼り付け（ExcelやWeb表からのコピー＆ペーストに対応）</label>
+              <textarea id="raw-paste-input" class="form-control text-mono" rows="2" placeholder="自治体名, 人口, 面積...&#10;青森市, 264543, 824.61&#10;弘前市, 164594, 524.20&#10;..."></textarea>
+              <button id="btn-apply-paste" class="btn btn-sm btn-secondary mt-2 w-100">
+                <i class="fa-solid fa-check"></i> 貼り付けたデータを取り込む
+              </button>
+            </div>
+
+            <!-- Subtle Testing Preset Button -->
+            <div class="text-center mt-3 pt-2 border-top">
+              <button id="btn-load-preset-subtle" class="btn btn-sm btn-outline text-muted border-dashed" title="動作確認用のサンプルデータ（全40市町村・10変数）を読み込みます">
+                <i class="fa-solid fa-flask"></i> 動作確認用サンプルデータ（全40市町村・複数変数）を読み込む
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Variable Selection Card in Step 1 (Visible after loading multi-variable data) -->
+        <div id="variable-select-card" class="card mb-4 variable-select-card hidden" style="background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border: 2px solid #93c5fd; box-shadow: 0 4px 15px rgba(37,99,235,0.08);">
+          <div class="card-body p-3 flex-between gap-3 flex-wrap">
+            <div class="d-flex align-items-center gap-3 flex-1" style="min-width: 280px;">
+              <div style="width: 46px; height: 46px; background: #2563eb; color: white; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; flex-shrink:0;">
+                <i class="fa-solid fa-layer-group"></i>
+              </div>
+              <div style="flex: 1;">
+                <label for="select-variable-step1" class="form-label mb-1 fw-bold text-dark" style="font-size: 0.95rem;">
+                  📊 作図する項目（変数）を選択
+                </label>
+                <select id="select-variable-step1" class="form-control form-control-lg fw-bold" style="border-color: #3b82f6; font-size: 1.05rem; background:#ffffff;">
+                  <!-- Populated dynamically -->
+                </select>
+              </div>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+              <span id="variable-meta-badge" class="badge badge-primary px-3 py-2" style="font-size: 0.85rem; background: #2563eb;">
+                データ読込済
+              </span>
+              <button id="btn-open-var-modal-step1" class="btn btn-sm btn-outline" style="background:#ffffff; font-weight:600;">
+                <i class="fa-solid fa-list-check"></i> 項目一覧から選ぶ
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Summary Stats Bar -->
+        <div class="stats-summary-bar mb-4">
+          <div class="stat-card">
+            <span class="stat-label">入力状況</span>
+            <span id="stat-count" class="stat-value text-blue">0 / 40</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">合計値</span>
+            <span id="stat-sum" class="stat-value">-</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">平均値</span>
+            <span id="stat-mean" class="stat-value">-</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">中央値</span>
+            <span id="stat-median" class="stat-value">-</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">最大値</span>
+            <span id="stat-max" class="stat-value text-red" title="">-</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">最小値</span>
+            <span id="stat-min" class="stat-value text-green" title="">-</span>
+          </div>
+        </div>
+
+        <!-- Proceed to Step 2 Button -->
+        <div class="d-flex justify-content-end mb-3">
+          <button id="btn-next-step" class="btn btn-primary btn-lg px-4 py-3" style="font-size: 1.05rem; box-shadow: 0 4px 14px rgba(37,99,235,0.35);">
+            次へ：マップをデザイン・出力 <i class="fa-solid fa-arrow-right ms-2"></i>
+          </button>
+        </div>
+
+        <!-- 40 Municipalities Direct Numeric Input Table -->
+        <div class="card mb-4">
+          <div class="card-header flex-between">
+            <div class="d-flex align-items-center gap-2">
+              <h3><i class="fa-solid fa-pen-to-square"></i> 市町村別 数値の直接入力 (全40自治体)</h3>
+              <span id="match-badge" class="badge badge-warning">0 / 40 入力済</span>
+            </div>
+            <div class="table-actions-top d-flex gap-2">
+              <button id="btn-dl-template" class="btn btn-sm btn-outline" title="全市町村名入りのCSVテンプレートをダウンロード">
+                <i class="fa-solid fa-file-arrow-down"></i> CSVテンプレート
+              </button>
+              <button id="btn-export-csv" class="btn btn-sm btn-outline" title="現在の編集データをCSV形式で保存">
+                <i class="fa-solid fa-file-csv"></i> CSV保存
+              </button>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-search-bar p-2 flex-between gap-2">
+              <div class="search-input-wrapper flex-1" style="flex:1;">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="table-search" class="form-control form-control-sm" placeholder="市町村名で絞り込み（例: 青森、八戸、南部）...">
+              </div>
+              <button id="btn-clear-values" class="btn btn-sm btn-outline text-red" title="すべての数値をクリアして空にする">
+                <i class="fa-solid fa-trash-can"></i> クリア
+              </button>
+            </div>
+            
+            <div class="table-container">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th style="width: 45px; text-align:center;">状態</th>
+                    <th style="width: 70px;">コード</th>
+                    <th>市町村名</th>
+                    <th style="width: 70px; text-align:center;">区分</th>
+                    <th id="th-val-col" style="width: 170px; text-align:right;">数値（入力欄）</th>
+                  </tr>
+                </thead>
+                <tbody id="data-table-body">
+                  <!-- Dynamically generated input rows -->
+                </tbody>
+              </table>
+            </div>
+            <div class="p-2 bg-light border-top text-muted flex-between" style="font-size:0.75rem;">
+              <span>※ 表の数値を直接編集すると、リアルタイムに地図と統計値へ反映されます。</span>
+              <span id="filtered-count-label">全40自治体を表示中</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Step 2: Map Customization & Export -->
+    <section id="step2-map" class="step-container" style="display: none;">
+      
+      <!-- Left Control Panel (Sidebar) -->
+      <aside class="control-panel">
+        
+        <div class="p-3 border-bottom" style="background:#f8fafc;">
+          <button id="btn-prev-step" class="btn btn-outline w-100 mb-2">
+            <i class="fa-solid fa-arrow-left"></i> データ入力に戻る
+          </button>
+        </div>
+
+        <nav class="panel-tabs">
+          <button class="tab-btn active" data-tab="tab-color">
+            <i class="fa-solid fa-palette"></i> 色と階級
+          </button>
+          <button class="tab-btn" data-tab="tab-text">
+            <i class="fa-solid fa-font"></i> 情報・文字
+          </button>
+          <button class="tab-btn" data-tab="tab-export">
+            <i class="fa-solid fa-download"></i> 保存・共有
+          </button>
+        </nav>
+
+        <div class="panel-content">
+
+          <!-- Tab 1: Color & Binning Settings -->
+          <section id="tab-color" class="tab-page active">
+            
+            <!-- Variable Selection in Step 2 Tab 1 -->
+            <div class="card mb-3" style="border: 2px solid #93c5fd; background: #f0fdf4;">
+              <div class="card-header flex-between" style="background:#eff6ff;">
+                <h3><i class="fa-solid fa-layer-group text-blue"></i> 作図項目（変数）の選択</h3>
+              </div>
+              <div class="card-body">
+                <div class="form-group mb-0">
+                  <select id="select-variable-step2" class="form-control form-control-lg fw-bold" style="border-color: #3b82f6; background:#ffffff;">
+                    <!-- Populated by JS -->
+                  </select>
+                  <small class="text-muted mt-1">※ 作図項目を切り替えると、地図の配色・凡例・タイトルが連動して更新されます。</small>
+                </div>
+              </div>
+            </div>
+
+            <!-- Palette Selection -->
+            <div class="card mb-3">
+              <div class="card-header">
+                <h3><i class="fa-solid fa-swatchbook"></i> カラーパレット</h3>
+              </div>
+              <div class="card-body">
+                <h6 class="mt-2 mb-2" style="font-size:0.8rem; font-weight:700; color:#64748b;">単色の濃淡</h6>
+                <div class="palette-grid">
+                  <button class="palette-btn active" data-palette="blues" title="ビジネスブルー">
+                    <span class="palette-preview blues"></span>
+                    <span>ブルー</span>
+                  </button>
+                  <button class="palette-btn" data-palette="greens" title="グリーン">
+                    <span class="palette-preview greens"></span>
+                    <span>グリーン</span>
+                  </button>
+                  <button class="palette-btn" data-palette="oranges" title="オレンジ">
+                    <span class="palette-preview oranges"></span>
+                    <span>オレンジ</span>
+                  </button>
+                  <button class="palette-btn" data-palette="reds" title="レッド">
+                    <span class="palette-preview reds"></span>
+                    <span>レッド</span>
+                  </button>
+                  <button class="palette-btn" data-palette="purples" title="パープル">
+                    <span class="palette-preview purples"></span>
+                    <span>パープル</span>
+                  </button>
+                </div>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.8rem; font-weight:700; color:#64748b;">複数の色</h6>
+                <div class="palette-grid">
+                  <button class="palette-btn" data-palette="ylorrd" title="YlOrRd">
+                    <span class="palette-preview ylorrd"></span>
+                    <span>YlOrRd</span>
+                  </button>
+                  <button class="palette-btn" data-palette="viridis" title="Viridis">
+                    <span class="palette-preview viridis"></span>
+                    <span>Viridis</span>
+                  </button>
+                  <button class="palette-btn" data-palette="cividis" title="Cividis">
+                    <span class="palette-preview cividis"></span>
+                    <span>Cividis</span>
+                  </button>
+                  <button class="palette-btn" data-palette="spectral" title="スペクトラル">
+                    <span class="palette-preview spectral"></span>
+                    <span>スペクトラル</span>
+                  </button>
+                  <button class="palette-btn" data-palette="plasma" title="Plasma">
+                    <span class="palette-preview plasma"></span>
+                    <span>Plasma</span>
+                  </button>
+                  <button class="palette-btn" data-palette="magma" title="Magma">
+                    <span class="palette-preview magma"></span>
+                    <span>Magma</span>
+                  </button>
+                  <button class="palette-btn" data-palette="paired" title="Paired">
+                    <span class="palette-preview paired"></span>
+                    <span>Paired</span>
+                  </button>
+                  <button class="palette-btn" data-palette="set1" title="Set1">
+                    <span class="palette-preview set1"></span>
+                    <span>Set1</span>
+                  </button>
+                </div>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.8rem; font-weight:700; color:#64748b;">白黒</h6>
+                <div class="palette-grid">
+                  <button class="palette-btn" data-palette="grayscale" title="白黒印刷用">
+                    <span class="palette-preview grayscale"></span>
+                    <span>白黒印刷用</span>
+                  </button>
+                  <button class="palette-btn" data-palette="patterns" title="白黒パターン">
+                    <span class="palette-preview patterns" style="background: repeating-linear-gradient(45deg, #0f172a 0, #0f172a 2px, #ffffff 2px, #ffffff 5px);"></span>
+                    <span>白黒パターン</span>
+                  </button>
+                </div>
+
+                <!-- Custom 2-Color Gradient Option -->
+                <div class="custom-gradient-section mt-3 pt-2 border-top">
+                  <div class="form-check mb-2">
+                    <input type="checkbox" id="chk-use-custom-gradient" class="form-check-input">
+                    <label for="chk-use-custom-gradient" class="form-check-label fw-bold">カスタム2色グラデーションを使用</label>
+                  </div>
+                  <div id="custom-color-pickers" class="d-flex align-items-center gap-2 hidden">
+                    <div class="flex-1" style="flex:1;">
+                      <small class="text-muted d-block">最小値の色</small>
+                      <input type="color" id="color-picker-start" value="#eff6ff" class="form-control form-control-color w-100" style="height:36px; padding:2px;">
+                    </div>
+                    <i class="fa-solid fa-arrow-right text-muted mt-3"></i>
+                    <div class="flex-1" style="flex:1;">
+                      <small class="text-muted d-block">最大値の色</small>
+                      <input type="color" id="color-picker-end" value="#1e3a8a" class="form-control form-control-color w-100" style="height:36px; padding:2px;">
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-check mt-3">
+                  <input type="checkbox" id="chk-invert-palette" class="form-check-input">
+                  <label for="chk-invert-palette" class="form-check-label">カラーグラデーションを反転</label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Classification Mode -->
+            <div class="card mb-3">
+              <div class="card-header">
+                <h3><i class="fa-solid fa-sliders"></i> 階級区分（データの区切り方）</h3>
+              </div>
+              <div class="card-body">
+                
+                <div class="form-group">
+                  <label>区分けモード</label>
+                  <div class="radio-group">
+                    <label class="radio-card">
+                      <input type="radio" name="binning-mode" value="equal" checked>
+                      <div class="radio-body">
+                        <strong>等間隔（自動）</strong>
+                        <small>最小〜最大値を等しい数値幅で分割</small>
+                      </div>
+                    </label>
+                    <label class="radio-card">
+                      <input type="radio" name="binning-mode" value="jenks">
+                      <div class="radio-body">
+                        <strong>Jenks自然分類法（推奨）</strong>
+                        <small>統計データの自然なクラスタ・偏りを抽出</small>
+                      </div>
+                    </label>
+                    <label class="radio-card">
+                      <input type="radio" name="binning-mode" value="quantile">
+                      <div class="radio-body">
+                        <strong>分位数（自動）</strong>
+                        <small>各区間に同数の自治体を均等分配</small>
+                      </div>
+                    </label>
+                    <label class="radio-card">
+                      <input type="radio" name="binning-mode" value="custom">
+                      <div class="radio-body">
+                        <strong>手動指定</strong>
+                        <small>境界数値を任意に入力指定</small>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Steps Count Slider (Auto Mode) -->
+                <div id="step-count-wrapper" class="form-group mt-3">
+                  <div class="flex-between mb-1">
+                    <label for="step-count-slider">ステップ数（段階数、最大7）</label>
+                    <span id="step-count-value" class="fw-bold text-blue">5 段階</span>
+                  </div>
+                  <input type="range" id="step-count-slider" min="3" max="7" value="5" class="form-range">
+                </div>
+
+                <!-- Custom Breaks Input (Custom Mode) -->
+                <div id="custom-breaks-wrapper" class="form-group mt-3 hidden">
+                  <label for="custom-breaks-input">区切り数値（カンマまたは空白区切りで入力）</label>
+                  <input type="text" id="custom-breaks-input" class="form-control" placeholder="例: 10000, 30000, 50000, 100000">
+                  <small class="text-muted">※最小値と最大値の間のしきい値を昇順で指定します。</small>
+                  <button id="btn-apply-breaks" class="btn btn-sm btn-secondary mt-2 w-100">
+                    手動刻みを適用
+                  </button>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Canvas & Border Style Settings -->
+            <div class="card">
+              <div class="card-header">
+                <h3><i class="fa-solid fa-file-image"></i> 背景キャンバス・枠線設定</h3>
+              </div>
+              <div class="card-body">
+                <div class="form-group">
+                  <label for="select-map-bg">背景キャンバス</label>
+                  <select id="select-map-bg" class="form-control">
+                    <option value="none" selected>純白キャンバス（Word/パワポ/論文貼り付け用）</option>
+                    <option value="minimal-light">薄いグレー背景 (#f8fafc)</option>
+                    <option value="transparent">透明背景（PNG透過書き出し用）</option>
+                    <option value="minimal-dark">ダークキャンバス (#0f172a)</option>
+                  </select>
+                </div>
+
+                <div class="form-group mt-3">
+                  <label for="select-stroke-color">市町村の境界線（枠線）</label>
+                  <select id="select-stroke-color" class="form-control">
+                    <option value="auto" selected>パレット明暗連動（推奨：濃色は白、淡色は濃線）</option>
+                    <option value="match_palette">パレット同系色（ダークトーン調和線）</option>
+                    <option value="dark">ダークグレー（くっきり濃線）</option>
+                    <option value="white">ホワイト（一律白線）</option>
+                    <option value="black">ブラック（くっきり黒線）</option>
+                    <option value="none">境界線なし（ベタ塗り）</option>
+                  </select>
+                </div>
+
+                <div class="form-group mt-3">
+                  <div class="flex-between mb-1">
+                    <label for="stroke-opacity-slider">境界線の透明度 / 太さ</label>
+                    <span id="stroke-opacity-value" class="text-muted">0.8</span>
+                  </div>
+                  <input type="range" id="stroke-opacity-slider" min="0.1" max="1.0" step="0.1" value="0.8" class="form-range">
+                </div>
+              </div>
+            </div>
+
+          </section>
+
+          <!-- Tab 2: Text & Labels -->
+          <section id="tab-text" class="tab-page">
+            
+            <div class="card mb-3">
+              <div class="card-header">
+                <h3><i class="fa-solid fa-heading"></i> マップタイトル・凡例情報</h3>
+              </div>
+              <div class="card-body">
+                
+                <div class="form-check mb-3">
+                  <input type="checkbox" id="chk-show-title" class="form-check-input" checked>
+                  <label for="chk-show-title" class="form-check-label fw-bold">地図画像上にタイトルを表示する</label>
+                </div>
+
+                <div class="form-group">
+                  <label for="map-title-input">マップタイトル</label>
+                  <input type="text" id="map-title-input" class="form-control" value="青森県 市町村別総人口分布（2023年推計）">
+                </div>
+
+                <div class="form-group mt-3">
+                  <label for="map-subtitle-input">サブタイトル / 補足説明</label>
+                  <input type="text" id="map-subtitle-input" class="form-control" value="全40市町村における人口集積と地域偏在の可視化">
+                </div>
+
+                <div class="form-group mt-3">
+                  <label for="map-unit-input">数値の単位</label>
+                  <input type="text" id="map-unit-input" class="form-control" value="単位：人">
+                </div>
+
+                <div class="form-check mt-3 mb-1">
+                  <input type="checkbox" id="chk-show-remarks" class="form-check-input" checked>
+                  <label for="chk-show-remarks" class="form-check-label fw-bold">地図画像上に備考欄・出典を表示する</label>
+                </div>
+
+                <div class="form-group mt-2">
+                  <label for="map-remarks-input">備考欄 / 出典情報</label>
+                  <textarea id="map-remarks-input" class="form-control" rows="3" placeholder="※ 出典：青森県統計課 推計人口データ&#10;※ 境界データ：国土数値情報行政区域データ"></textarea>
+                </div>
+
+              </div>
+            </div>
+
+            <div class="card mb-3">
+              <div class="card-header">
+                <h3><i class="fa-solid fa-map-location-dot"></i> 表示対象地域・ズーム</h3>
+              </div>
+              <div class="card-body">
+                <div class="form-group">
+                  <label for="select-sidebar-region">表示地域</label>
+                  <select id="select-sidebar-region" class="form-control">
+                    <option value="all" selected>🗾 青森県全域 (全40市町村)</option>
+                    <option value="tsugaru">🍏 津軽地域 (中南・西北・東青 19市町村)</option>
+                    <option value="sanpachi">🏭 三八地域 (八戸市・三戸郡 7市町村)</option>
+                    <option value="kamikita">🐴 上北・上十三地域 (十和田・三沢等 9市町村)</option>
+                    <option value="shimokita">🐟 下北地域 (むつ・大間・東通等 5市町村)</option>
+                    <option value="nanbu">🌾 県南全体 (三八・上北 16市町村)</option>
+                  </select>
+                  <small class="text-muted mt-1">※ 選択した地域に地図が自動的に拡大・フォーカスします。</small>
+                </div>
+              </div>
+            </div>
+
+            <div class="card mb-3">
+              <div class="card-header">
+                <h3><i class="fa-solid fa-tags"></i> 地図上の市町村ラベル</h3>
+              </div>
+              <div class="card-body">
+                <div class="form-group mb-2">
+                  <label for="select-label-mode">ラベル表示スタイル</label>
+                  <select id="select-label-mode" class="form-control">
+                    <option value="none" selected>表示しない（クリーンな地図）</option>
+                    <option value="cities_only">主要10市のみ表示</option>
+                    <option value="compact">全40自治体コンパクト表示</option>
+                    <option value="all">全40自治体標準表示（重なり自動回避）</option>
+                  </select>
+                </div>
+                <div class="form-group mb-0 mt-3" id="label-content-group">
+                  <label>ラベルの表示内容</label>
+                  <div class="mt-1">
+                    <div class="form-check form-check-inline">
+                      <input class="form-check-input" type="radio" name="labelContent" id="lbl-name-only" value="name_only">
+                      <label class="form-check-label" for="lbl-name-only">市町村名のみ</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                      <input class="form-check-input" type="radio" name="labelContent" id="lbl-name-val" value="name_val" checked>
+                      <label class="form-check-label" for="lbl-name-val">市町村名＋数値</label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <h3><i class="fa-solid fa-vector-square"></i> 凡例（レジェンド）の配置</h3>
+              </div>
+              <div class="card-body">
+                <div class="form-group">
+                  <label for="legend-position-select">凡例の表示位置</label>
+                  <select id="legend-position-select" class="form-control">
+                    <option value="rightmiddle" selected>右中（標準）</option>
+                    <option value="leftmiddle">左中</option>
+                    <option value="bottomright">右下</option>
+                    <option value="bottomleft">左下</option>
+                    <option value="topright">右上</option>
+                    <option value="topleft">左上</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+          </section>
+
+          <!-- Tab 3: Export & Share -->
+          <section id="tab-export" class="tab-page">
+            
+            <div class="card mb-3">
+              <div class="card-header">
+                <h3><i class="fa-solid fa-image"></i> PNG画像保存・解像度設定</h3>
+              </div>
+              <div class="card-body">
+                
+                <div class="form-group mb-3">
+                  <label for="select-export-scale">用紙規格・解像度（A4横置き基準: 297×210mm）</label>
+                  <select id="select-export-scale" class="form-control">
+                    <option value="3" selected>A4横 印刷・論文用 (3508 × 2480 px / 300 DPI相当) 【最高画質・推奨】</option>
+                    <option value="2">A4横 プレゼン・スライド用 (1754 × 1240 px / 150 DPI相当)</option>
+                    <option value="1">A4横 Web・画面表示用 (1188 × 840 px / 72 DPI相当)</option>
+                  </select>
+                  <small class="text-muted mt-1">※ A4横向きの用紙比率（297:210）に合わせて、地図が最も大きく収まる構図で出力されます。</small>
+                </div>
+
+                <div class="form-check mb-2">
+                  <input type="checkbox" id="chk-export-labels" class="form-check-input" checked>
+                  <label for="chk-export-labels" class="form-check-label">書き出す画像に市町村名・数値ラベルを含める</label>
+                </div>
+
+                <div class="form-check mb-3">
+                  <input type="checkbox" id="chk-export-legend" class="form-check-input" checked>
+                  <label for="chk-export-legend" class="form-check-label">書き出す画像に凡例（レジェンド）を含める</label>
+                </div>
+
+                <button id="btn-export-png-tab" class="btn btn-primary btn-lg w-100 mb-2" style="font-size:1.05rem; padding:12px;">
+                  <i class="fa-solid fa-download"></i> マップ保存 (PNGを出力)
+                </button>
+
+                <button id="btn-copy-png-tab" class="btn btn-secondary w-100" style="padding:10px;">
+                  <i class="fa-regular fa-copy"></i> クリップボードに画像をコピー
+                </button>
+
+                <div class="alert alert-info mt-3 mb-0" style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px; font-size:0.78rem; color:#1e40af;">
+                  <i class="fa-solid fa-folder-open me-1"></i>
+                  <strong>保存先フォルダを毎回指定する方法:</strong><br>
+                  ブラウザ（Chrome / Edge / Firefox）の設定で<b>「ダウンロード前に各ファイルの保存場所を確認する」</b>を有効にしておくと、保存時に毎回フォルダ選択画面が表示されます。
+                </div>
+
+              </div>
+            </div>
+
+            <!-- CSV Export Card -->
+            <div class="card">
+              <div class="card-header">
+                <h3><i class="fa-solid fa-file-csv"></i> データファイル出力</h3>
+              </div>
+              <div class="card-body">
+                <p class="text-muted mb-3" style="font-size:0.8rem;">現在編集・表示中の全40市町村データをCSVファイルとして書き出します。</p>
+                <button id="btn-export-csv-tab" class="btn btn-outline w-100">
+                  <i class="fa-solid fa-download"></i> CSV形式でデータを保存
+                </button>
+              </div>
+            </div>
+
+          </section>
+
+        </div>
+      </aside>
+
+      <!-- Right Map Display Canvas Area -->
+      <section class="map-container-section">
+        
+        <!-- Captured Frame Container (Target for PNG Export) -->
+        <div id="export-map-frame" class="map-export-frame theme-light">
+          
+          <!-- SVG Pattern Definitions for Black and White printing -->
+          <svg style="width:0; height:0; position:absolute; z-index:-1;">
+            <defs>
+              <pattern id="pat-0" patternUnits="userSpaceOnUse" width="10" height="10">
+                <rect width="10" height="10" fill="#ffffff" />
+              </pattern>
+              <pattern id="pat-1" patternUnits="userSpaceOnUse" width="8" height="8">
+                <rect width="8" height="8" fill="#ffffff" />
+                <circle cx="2" cy="2" r="1.2" fill="#000000" />
+                <circle cx="6" cy="6" r="1.2" fill="#000000" />
+              </pattern>
+              <pattern id="pat-2" patternUnits="userSpaceOnUse" width="8" height="8">
+                <rect width="8" height="8" fill="#ffffff" />
+                <line x1="0" y1="4" x2="8" y2="4" stroke="#000000" stroke-width="1.2" />
+              </pattern>
+              <pattern id="pat-3" patternUnits="userSpaceOnUse" width="8" height="8">
+                <rect width="8" height="8" fill="#ffffff" />
+                <line x1="4" y1="0" x2="4" y2="8" stroke="#000000" stroke-width="1.2" />
+              </pattern>
+              <pattern id="pat-4" patternUnits="userSpaceOnUse" width="10" height="10">
+                <rect width="10" height="10" fill="#ffffff" />
+                <line x1="0" y1="10" x2="10" y2="0" stroke="#000000" stroke-width="1.2" />
+              </pattern>
+              <pattern id="pat-5" patternUnits="userSpaceOnUse" width="10" height="10">
+                <rect width="10" height="10" fill="#ffffff" />
+                <line x1="0" y1="0" x2="10" y2="10" stroke="#000000" stroke-width="1.2" />
+                <line x1="0" y1="10" x2="10" y2="0" stroke="#000000" stroke-width="1.2" />
+              </pattern>
+              <pattern id="pat-6" patternUnits="userSpaceOnUse" width="8" height="8">
+                <rect width="8" height="8" fill="#ffffff" />
+                <line x1="0" y1="4" x2="8" y2="4" stroke="#000000" stroke-width="2.5" />
+                <line x1="4" y1="0" x2="4" y2="8" stroke="#000000" stroke-width="2.5" />
+              </pattern>
+              <pattern id="pat-7" patternUnits="userSpaceOnUse" width="10" height="10">
+                <rect width="10" height="10" fill="#000000" />
+              </pattern>
+            </defs>
+          </svg>
+
+          <!-- Header Overlay inside Map -->
+          <div class="map-overlay-header">
+            <h2 id="display-map-title">青森県 市町村別総人口分布（2023年推計）</h2>
+            <p id="display-map-subtitle">全40市町村における人口集積と地域偏在の可視化</p>
+          </div>
+
+          <!-- Leaflet Map Container -->
+          <div id="leaflet-map" class="map-canvas"></div>
+
+          <!-- Dynamic Legend Overlay -->
+          <div id="map-legend" class="map-legend-box position-rightmiddle">
+            <div class="legend-header">
+              <span class="legend-title">凡例</span>
+              <span id="display-legend-unit" class="legend-unit">単位：人</span>
+            </div>
+            <div id="legend-items-container" class="legend-items">
+              <!-- Dynamically populated by JS -->
+            </div>
+          </div>
+
+          <!-- Footnote / Remarks Overlay inside Map -->
+          <div class="map-overlay-footer">
+            <div id="display-map-remarks" class="map-remarks-text">
+              ※ 出典：青森県統計課 推計人口データ（2023年10月1日現在） | 青森県市町村コロプレスツール
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Quick Floating Control Bar on Map -->
+        <div class="floating-map-controls">
+          <button id="btn-fit-bounds" class="map-floating-btn" title="青森県全域に表示を戻す">
+            <i class="fa-solid fa-expand"></i> 全域表示
+          </button>
+          
+          <!-- Region Zoom Selector -->
+          <div class="region-zoom-container">
+            <select id="select-region-zoom" class="map-floating-select" title="地域にズーム">
+              <option value="all">🗾 青森県全域</option>
+              <option value="tsugaru">🍏 津軽地域 (弘前・五所川原・西北)</option>
+              <option value="sanpachi">🏭 三八地域 (八戸・三戸郡)</option>
+              <option value="kamikita">🐴 上北・上十三 (十和田・三沢)</option>
+              <option value="shimokita">🐟 下北地域 (むつ・大間・東通)</option>
+              <option value="nanbu">🌾 県南全体 (三八上北)</option>
+            </select>
+          </div>
+
+          <button id="btn-toggle-theme" class="map-floating-btn" title="キャンバス背景の切替 (ライト/ダーク)">
+            <i class="fa-solid fa-circle-half-stroke"></i>
+          </button>
+        </div>
+
+        <!-- Municipality Details Popup Card -->
+        <div id="municipality-detail-card" class="municipality-detail-card hidden">
+          <button id="btn-close-detail-card" class="btn-close-card">&times;</button>
+          <div class="detail-name" id="detail-muni-name">青森市</div>
+          <div class="detail-value" id="detail-muni-val">264,543 <small id="detail-muni-unit">人</small></div>
+          <div class="detail-stats" id="detail-muni-extra">順位: 1位 / 40自治体 (全体の 22.1%)</div>
+        </div>
+
+      </section>
+
+    </section>
+
+  </main>
+
+  <!-- Multi-Variable Selection Modal (appears when multi-variable data is loaded) -->
+  <div id="variable-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="d-flex align-items-center gap-2">
+          <i class="fa-solid fa-layer-group text-blue" style="font-size:1.35rem;"></i>
+          <h3 class="m-0">作図する項目（変数）の選択</h3>
+        </div>
+        <button id="btn-close-var-modal" class="modal-close-btn" title="閉じる">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted mb-3" style="font-size:0.9rem;">
+          読み込まれたデータ内に複数の項目（変数）が含まれています。作図の対象とする項目を選択してください。（※ 作図項目は画面上でいつでも変更できます）
+        </p>
+        <div id="modal-variable-list" class="variable-radio-grid">
+          <!-- Dynamically populated variable radio cards -->
+        </div>
+      </div>
+      <div class="modal-footer flex-between">
+        <span id="modal-var-count" class="text-muted" style="font-size:0.85rem;">全 0 項目</span>
+        <button id="btn-confirm-var-modal" class="btn btn-primary px-4 py-2" style="font-weight:700;">
+          <i class="fa-solid fa-check"></i> この項目で作図する
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Export libraries for 100% Firefox & Chrome PNG export compatibility -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+
+  <!-- Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "aomori-choropleth-app",
+  "version": "1.0.0",
+  "description": "青森県市町村コロプレスツール",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 start_server.py 3000",
+    "dev": "python3 start_server.py 3000"
+  },
+  "keywords": [
+    "aomori",
+    "choropleth",
+    "geojson",
+    "map",
+    "leaflet"
+  ],
+  "author": "",
+  "license": "MIT"
+}
