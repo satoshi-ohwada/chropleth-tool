@@ -724,6 +724,11 @@
     if (mode === "black") {
       return { color: "#0f172a", weight: 1.6 };
     }
+    
+    if (fillColor === "transparent") {
+      return { color: "#cbd5e1", weight: 1.0 }; // Slate-300 for visible light border
+    }
+
     if (mode === "match_palette") {
       return { color: darkenHex(fillColor, 0.45), weight: 1.3 };
     }
