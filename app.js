@@ -726,7 +726,7 @@
     }
     
     if (fillColor === "transparent") {
-      return { color: "#cbd5e1", weight: 1.0 }; // Slate-300 for visible light border
+      return { color: "#475569", weight: 1.3 }; // Slate-600 for clear visibility
     }
 
     if (mode === "match_palette") {
