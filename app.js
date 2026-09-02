@@ -1592,12 +1592,7 @@
     if (detailCard) detailCard.classList.add("hidden");
 
     try {
-      if (includeLabels) {
-        if (state.labelMode === "none") {
-          state.labelMode = "all";
-          renderLabelsLayer(); // Ensure labels are rendered
-        }
-      } else {
+      if (!includeLabels) {
         if (state.labelGroup) state.labelGroup.clearLayers();
       }
 
