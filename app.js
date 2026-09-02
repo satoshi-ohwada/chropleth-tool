@@ -572,10 +572,10 @@
       if (m.name === s) return m.name;
     }
 
-    // Match without '市', '町', '村' suffix
+    // Match without '市', '町', '村' suffix (only exact match)
     for (let m of AOMORI_MUNICIPALITIES) {
       let base = m.name.replace(/[市町村]$/, "");
-      if (s === base || s.startsWith(base)) return m.name;
+      if (s === base || s === base + "市" || s === base + "町" || s === base + "村") return m.name;
     }
 
     return null;
@@ -674,8 +674,12 @@
       zoomDelta: 0.25
     });
 
+    let zoomTimeout;
     state.leafletMap.on('zoomend', () => {
-      renderLabelsLayer();
+      clearTimeout(zoomTimeout);
+      zoomTimeout = setTimeout(() => {
+        renderLabelsLayer();
+      }, 200);
     });
 
     L.control.zoom({ position: 'topleft' }).addTo(state.leafletMap);
@@ -1026,7 +1030,7 @@
 
   // Permanent Static Label Marker Layer with Dynamic Overlap Resolution
   function renderLabelsLayer() {
-    if (!state.leafletMap || !state.dynamicCentroids) return;
+    if (!state.leafletMap || !state.dynamicCentroids || Object.keys(state.dynamicCentroids).length === 0) return;
 
     if (!state.labelGroup) {
       state.labelGroup = L.layerGroup().addTo(state.leafletMap);
@@ -1049,10 +1053,20 @@
       let shortVal = hasVal ? formatNumber(val) : "";
 
       let labelHTML = "";
-      let w = 80, h = 36;
+      
+      // Calculate approximate text width
+      let textLen = m.name.length;
+      if (state.labelContent === "name_val" && hasVal) {
+        textLen += shortVal.length + 1; // +1 for some spacing
+      }
+      
+      let w = 40 + (textLen * 12); // Base width + approx char width
+      let h = 36;
+      
       if (state.labelMode === "compact") {
         labelHTML = `<div class="static-label-compact">${m.name}${state.labelContent === "name_val" ? `<span>${shortVal}</span>` : ""}</div>`;
-        w = 60; h = 24;
+        w = 30 + (textLen * 10);
+        h = 24;
       } else {
         labelHTML = `<div class="static-label-name">${m.name}</div>${state.labelContent === "name_val" ? `<div class="static-label-val">${shortVal}</div>` : ""}`;
       }
@@ -1579,7 +1593,10 @@
 
     try {
       if (includeLabels) {
-        if (state.labelMode === "none") state.labelMode = "all";
+        if (state.labelMode === "none") {
+          state.labelMode = "all";
+          renderLabelsLayer(); // Ensure labels are rendered
+        }
       } else {
         if (state.labelGroup) state.labelGroup.clearLayers();
       }
@@ -2034,6 +2051,10 @@
     // Label Mode Select
     document.getElementById("select-label-mode").addEventListener("change", (e) => {
       state.labelMode = e.target.value;
+      const labelContentGroup = document.getElementById("label-content-group");
+      if (labelContentGroup) {
+        labelContentGroup.style.display = (state.labelMode === "none") ? "none" : "block";
+      }
       renderLabelsLayer();
     });
 
