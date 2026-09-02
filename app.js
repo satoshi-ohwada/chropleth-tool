@@ -181,8 +181,8 @@
       let val = state.currentValues[key];
       let base = state.baselinePopulation[key];
       if (typeof val === 'number' && typeof base === 'number' && base > 0) {
-        // Compute per 100,000 population
-        eff[key] = (val / base) * 100000;
+        // Compute per N population based on multiplier
+        eff[key] = (val / base) * (state.perCapitaMultiplier || 10000);
       } else {
         eff[key] = val; // fallback
       }
@@ -1696,24 +1696,48 @@
     document.getElementById("btn-export-csv").addEventListener("click", exportCurrentCSV);
     const exportCsvTab = document.getElementById("btn-export-csv-tab");
     if (exportCsvTab) exportCsvTab.addEventListener("click", exportCurrentCSV);
+    function updatePerCapitaUnit() {
+      const v = state.variables[state.activeVariableKey];
+      let baseUnit = v && v.unit ? `単位：${v.unit}` : "";
+      
+      if (state.isPerCapitaMode) {
+        let label = "1万人";
+        if (state.perCapitaMultiplier === 1) label = "1人";
+        else if (state.perCapitaMultiplier === 1000) label = "1,000人";
+        else if (state.perCapitaMultiplier === 10000) label = "1万人";
+        else if (state.perCapitaMultiplier === 100000) label = "10万人";
+        state.unit = baseUnit ? `${baseUnit} (${label}あたり)` : `単位：/${label}`;
+      } else {
+        state.unit = baseUnit;
+      }
+      
+      const displayUnit = document.getElementById("display-legend-unit");
+      const unitInput = document.getElementById("map-unit-input");
+      if (displayUnit) displayUnit.textContent = state.unit;
+      if (unitInput) unitInput.value = state.unit;
+      
+      updateDataTable();
+      renderGeoJSONLayer();
+      updateStatsSummary();
+    }
+
     const chkPerCapita = document.getElementById("chk-per-capita");
+    const selPerCapita = document.getElementById("select-per-capita-multiplier");
+    
     if (chkPerCapita) {
       chkPerCapita.addEventListener("change", (e) => {
         state.isPerCapitaMode = e.target.checked;
+        if (selPerCapita) state.perCapitaMultiplier = parseInt(selPerCapita.value) || 10000;
+        updatePerCapitaUnit();
+      });
+    }
+    
+    if (selPerCapita) {
+      selPerCapita.addEventListener("change", (e) => {
+        state.perCapitaMultiplier = parseInt(e.target.value) || 10000;
         if (state.isPerCapitaMode) {
-          state.unit = state.unit ? state.unit.replace("単位：", "単位：") + " (10万人あたり)" : "単位：人/10万人";
-        } else {
-          const v = state.variables[state.activeVariableKey];
-          state.unit = v && v.unit ? `単位：${v.unit}` : "";
+          updatePerCapitaUnit();
         }
-        const displayUnit = document.getElementById("display-legend-unit");
-        const unitInput = document.getElementById("map-unit-input");
-        if (displayUnit) displayUnit.textContent = state.unit;
-        if (unitInput) unitInput.value = state.unit;
-        
-        updateDataTable();
-        renderGeoJSONLayer();
-        updateStatsSummary();
       });
     }
 

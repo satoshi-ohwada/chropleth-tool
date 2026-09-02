@@ -254,11 +254,18 @@
                   <small class="text-muted mt-1">※ 作図項目を切り替えると、地図の配色・凡例・タイトルが連動して更新されます。</small>
                 </div>
                 <div class="form-check mt-3" style="background:#ffffff; padding:10px 10px 10px 30px; border-radius:6px; border:1px solid #d1d5db;">
-                  <input type="checkbox" id="chk-per-capita" class="form-check-input">
-                  <label for="chk-per-capita" class="form-check-label fw-bold" style="color:#0f172a;">
-                    <i class="fa-solid fa-users"></i> 人口10万人あたりの数値で色分けする
+                  <input type="checkbox" id="chk-per-capita" class="form-check-input" style="margin-top: 0.6rem;">
+                  <label for="chk-per-capita" class="form-check-label fw-bold d-flex align-items-center flex-wrap" style="color:#0f172a;">
+                    <i class="fa-solid fa-users me-1"></i> 人口
+                    <select id="select-per-capita-multiplier" class="form-select form-select-sm mx-2" style="width: auto; display: inline-block; font-weight: bold; padding-top: 0.1rem; padding-bottom: 0.1rem;">
+                      <option value="1">1人</option>
+                      <option value="1000">1,000人</option>
+                      <option value="10000" selected>1万人</option>
+                      <option value="100000">10万人</option>
+                    </select>
+                    あたりの数値で色分けする
                   </label>
-                  <small class="d-block text-muted mt-1" style="font-size:0.75rem;">※ システム内蔵の基準人口を使用して、指定した変数を「人口10万人あたりの発生数」に自動計算します。絶対値の比較による規模の偏りを排除します。</small>
+                  <small class="d-block text-muted mt-1" style="font-size:0.75rem;">※ システム内蔵の基準人口を使用して、指定した変数を指定単位あたりの発生数に自動計算します。</small>
                 </div>
               </div>
             </div>
