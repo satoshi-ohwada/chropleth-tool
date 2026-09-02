@@ -90,8 +90,8 @@
 
             <!-- Subtle Testing Preset Button -->
             <div class="text-center mt-3 pt-2 border-top">
-              <button id="btn-load-preset-subtle" class="btn btn-sm btn-outline text-muted border-dashed" title="動作確認用のサンプルデータ（全40市町村・10変数）を読み込みます">
-                <i class="fa-solid fa-flask"></i> 動作確認用サンプルデータ（全40市町村・複数変数）を読み込む
+              <button id="btn-load-preset-subtle" class="btn btn-sm btn-outline text-muted border-dashed" title="「統計でみる市区町村のすがた 2026」のサンプルデータを読み込みます">
+                <i class="fa-solid fa-flask"></i> サンプルデータ（統計でみる市区町村のすがた 2026）を読み込む
               </button>
             </div>
           </div>
@@ -252,6 +252,13 @@
                     <!-- Populated by JS -->
                   </select>
                   <small class="text-muted mt-1">※ 作図項目を切り替えると、地図の配色・凡例・タイトルが連動して更新されます。</small>
+                </div>
+                <div class="form-check mt-3" style="background:#ffffff; padding:10px 10px 10px 30px; border-radius:6px; border:1px solid #d1d5db;">
+                  <input type="checkbox" id="chk-per-capita" class="form-check-input">
+                  <label for="chk-per-capita" class="form-check-label fw-bold" style="color:#0f172a;">
+                    <i class="fa-solid fa-users"></i> 人口10万人あたりの数値で色分けする
+                  </label>
+                  <small class="d-block text-muted mt-1" style="font-size:0.75rem;">※ システム内蔵の基準人口を使用して、指定した変数を「人口10万人あたりの発生数」に自動計算します。絶対値の比較による規模の偏りを排除します。</small>
                 </div>
               </div>
             </div>

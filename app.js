@@ -80,233 +80,12 @@
     patterns: ["url(#pat-0)", "url(#pat-1)", "url(#pat-2)", "url(#pat-3)", "url(#pat-4)", "url(#pat-5)", "url(#pat-6)", "url(#pat-7)"]
   };
 
-  // --- 3. Presets Open Data (10 Datasets Bulk Store) ---
-  const PRESETS = {
-    population: {
-      id: "population",
-      name: "総人口",
-      label: "👥 総人口（2023年推計: 人）",
-      unit: "人",
-      title: "青森県 市町村別総人口分布（2023年推計）",
-      subtitle: "全40市町村における人口集積と地域偏在の可視化",
-      remarks: "※ 出典：青森県統計課 推計人口データ（2023年10月1日現在）",
-      palette: "blues",
-      data: {
-        "青森市": 264543, "弘前市": 164594, "八戸市": 215444, "黒石市": 31086,
-        "五所川原市": 50406, "十和田市": 60233, "三沢市": 37372, "むつ市": 52187,
-        "つがる市": 30140, "平川市": 30145, "平内町": 10077, "今別町": 2182,
-        "蓬田村": 2423, "外ヶ浜町": 4802, "鰺ヶ沢町": 8358, "深浦町": 7120,
-        "西目屋村": 1198, "藤崎町": 14502, "大鰐町": 8402, "田舎館村": 7306,
-        "板柳町": 12437, "鶴田町": 12053, "中泊町": 9284, "野辺地町": 12398,
-        "七戸町": 14451, "六戸町": 10476, "横浜町": 4141, "東北町": 16104,
-        "六ヶ所村": 9787, "おいらせ町": 24209, "大間町": 4627, "東通村": 5747,
-        "風間浦村": 1604, "佐井村": 1673, "三戸町": 8872, "五戸町": 15729,
-        "田子町": 4867, "南部町": 16672, "階上町": 13248, "新郷村": 2110
-      }
-    },
-    aging: {
-      id: "aging",
-      name: "高齢化率",
-      label: "👵 高齢化率（65歳以上割合: %）",
-      unit: "%",
-      title: "青森県 市町村別高齢化率（2023年）",
-      subtitle: "65歳以上人口の割合（高齢化率）の地域格差",
-      remarks: "※ 出典：青森県福祉ヒアリング資料・国勢調査推計値（2023年）",
-      palette: "oranges",
-      data: {
-        "青森市": 35.2, "弘前市": 34.8, "八戸市": 32.1, "黒石市": 40.5,
-        "五所川原市": 39.8, "十和田市": 34.6, "三沢市": 28.5, "むつ市": 35.1,
-        "つがる市": 40.2, "平川市": 37.4, "平内町": 44.1, "今別町": 53.6,
-        "蓬田村": 42.8, "外ヶ浜町": 49.3, "鰺ヶ沢町": 46.5, "深浦町": 48.9,
-        "西目屋村": 46.2, "藤崎町": 37.1, "大鰐町": 45.8, "田舎館村": 38.2,
-        "板柳町": 40.9, "鶴田町": 39.7, "中泊町": 47.3, "野辺地町": 38.6,
-        "七戸町": 39.2, "六戸町": 33.4, "横浜町": 41.2, "東北町": 36.8,
-        "六ヶ所村": 27.9, "おいらせ町": 28.1, "大間町": 42.6, "東通村": 39.5,
-        "風間浦村": 49.8, "佐井村": 47.9, "三戸町": 44.5, "五戸町": 40.1,
-        "田子町": 45.2, "南部町": 39.8, "階上町": 34.9, "新郷村": 46.8
-      }
-    },
-    youth: {
-      id: "youth",
-      name: "年少人口比率",
-      label: "🧒 年少人口比率（15歳未満割合: %）",
-      unit: "%",
-      title: "青森県 市町村別年少人口比率（2023年）",
-      subtitle: "15歳未満年少人口が総人口に占める比率の分布",
-      remarks: "※ 出典：青森県統計課 年齢別推計人口（2023年）",
-      palette: "greens",
-      data: {
-        "おいらせ町": 14.8, "三沢市": 13.9, "六戸町": 13.2, "八戸市": 11.8,
-        "青森市": 10.5, "弘前市": 10.7, "十和田市": 10.9, "藤崎町": 10.8,
-        "階上町": 10.4, "東北町": 10.1, "七戸町": 9.8, "六ヶ所村": 11.2,
-        "平川市": 9.9, "五戸町": 9.5, "南部町": 9.4, "むつ市": 9.8,
-        "つがる市": 9.1, "黒石市": 8.9, "五所川原市": 9.3, "板柳町": 8.7,
-        "鶴田町": 8.6, "田舎館村": 9.6, "平内町": 7.5, "野辺地町": 8.9,
-        "三戸町": 7.9, "東通村": 8.2, "大間町": 7.4, "田子町": 7.1,
-        "鰺ヶ沢町": 6.8, "大鰐町": 6.5, "新郷村": 6.9, "横浜町": 7.2,
-        "深浦町": 5.9, "中泊町": 6.1, "蓬田村": 6.3, "風間浦村": 5.2,
-        "西目屋村": 5.4, "外ヶ浜町": 4.8, "佐井村": 4.9, "今別町": 3.7
-      }
-    },
-    apple: {
-      id: "apple",
-      name: "リンゴ収穫量",
-      label: "🍏 リンゴ収穫量（2022年推計: トン）",
-      unit: "トン",
-      title: "青森県 市町村別リンゴ収穫量推計（2022年）",
-      subtitle: "津軽平野を中心とするりんご王国あおもりの主要産地分布",
-      remarks: "※ 出典：農林水産省 作物統計調査（市町村別推計データ）",
-      palette: "reds",
-      data: {
-        "弘前市": 175000, "平川市": 48000, "青森市": 45000, "黒石市": 38000,
-        "板柳町": 28000, "鶴田町": 19000, "藤崎町": 18000, "五所川原市": 16000,
-        "大鰐町": 9500, "田舎館村": 8200, "南部町": 7500, "三戸町": 6200,
-        "五戸町": 5400, "つがる市": 4200, "鰺ヶ沢町": 3500, "七戸町": 3100,
-        "十和田市": 2800, "八戸市": 1200, "階上町": 800, "西目屋村": 650,
-        "平内町": 120, "野辺地町": 100, "東北町": 300, "六戸町": 250,
-        "おいらせ町": 180, "新郷村": 450, "田子町": 500, "中泊町": 150,
-        "外ヶ浜町": 50, "今別町": 20, "蓬田村": 30, "深浦町": 200,
-        "三沢市": 80, "むつ市": 30, "横浜町": 20, "六ヶ所村": 10,
-        "大間町": 0, "東通村": 0, "風間浦村": 0, "佐井村": 0
-      }
-    },
-    garlic: {
-      id: "garlic",
-      name: "ニンニク収穫量",
-      label: "🧄 ニンニク収穫量（2022年推計: トン）",
-      unit: "トン",
-      title: "青森県 市町村別ニンニク収穫量推計（2022年）",
-      subtitle: "日本一の生産量を誇る青森県産にんにくの主要産地分布",
-      remarks: "※ 出典：農林水産省 地域特産野菜生産状況調査",
-      palette: "oranges",
-      data: {
-        "十和田市": 4200, "田子町": 1950, "八戸市": 1100, "七戸町": 980,
-        "五戸町": 850, "東北町": 720, "新郷村": 680, "南部町": 540,
-        "六戸町": 430, "おいらせ町": 360, "三戸町": 310, "青森市": 220,
-        "弘前市": 180, "つがる市": 160, "平川市": 140, "むつ市": 90,
-        "階上町": 85, "黒石市": 70, "五所川原市": 65, "東通村": 60,
-        "平内町": 45, "六ヶ所村": 40, "野辺地町": 35, "三沢市": 30,
-        "横浜町": 25, "鰺ヶ沢町": 20, "中泊町": 18, "鶴田町": 15,
-        "板柳町": 12, "藤崎町": 10, "田舎館村": 8, "大鰐町": 8,
-        "深浦町": 5, "西目屋村": 4, "大間町": 3, "外ヶ浜町": 2,
-        "今別町": 1, "蓬田村": 1, "風間浦村": 1, "佐井村": 1
-      }
-    },
-    area: {
-      id: "area",
-      name: "行政面積",
-      label: "🗺️ 市町村行政面積（2023年: km²）",
-      unit: "km²",
-      title: "青森県 市町村別行政面積（2023年）",
-      subtitle: "国土数値情報に基づく各市町村の土地面積",
-      remarks: "※ 出典：国土地理院 全国都道府県市区町村面積調",
-      palette: "purples",
-      data: {
-        "むつ市": 864.12, "青森市": 824.61, "十和田市": 725.65, "深浦町": 488.90,
-        "弘前市": 524.20, "八戸市": 305.56, "五所川原市": 404.18, "東通村": 295.27,
-        "鰺ヶ沢町": 343.08, "外ヶ浜町": 230.29, "平川市": 346.01, "黒石市": 223.96,
-        "つがる市": 253.55, "三沢市": 119.87, "平内町": 217.08, "東北町": 326.50,
-        "六ヶ所村": 252.68, "南部町": 153.12, "田子町": 241.98, "五戸町": 177.67,
-        "七戸町": 337.23, "新郷村": 125.75, "西目屋村": 242.24, "佐井村": 135.04,
-        "中泊町": 216.32, "大鰐町": 163.43, "おいらせ町": 70.66, "野辺地町": 81.68,
-        "横浜町": 126.38, "今別町": 125.27, "階上町": 94.01, "鶴田町": 46.43,
-        "板柳町": 41.88, "藤崎町": 37.29, "大間町": 52.17, "三戸町": 137.69,
-        "六戸町": 83.89, "蓬田村": 80.19, "風間浦村": 69.55, "田舎館村": 22.35
-      }
-    },
-    pop_density: {
-      id: "pop_density",
-      name: "人口密度",
-      label: "🏘️ 人口密度（2023年: 人/km²）",
-      unit: "人/km²",
-      title: "青森県 市町村別人口密度（2023年）",
-      subtitle: "1平方キロメートルあたりの居住人口分布",
-      remarks: "※ 出典：青森県統計課 人口推計及び国土地理院面積データより算出",
-      palette: "blues",
-      data: {
-        "八戸市": 705.1, "藤崎町": 388.9, "田舎館村": 326.9, "青森市": 320.8,
-        "弘前市": 314.0, "三沢市": 311.8, "おいらせ町": 342.6, "板柳町": 297.0,
-        "鶴田町": 259.6, "野辺地町": 151.8, "階上町": 140.9, "黒石市": 138.8,
-        "五所川原市": 124.7, "六戸町": 124.9, "つがる市": 118.9, "南部町": 108.9,
-        "五戸町": 88.5, "平川市": 87.1, "十和田市": 83.0, "むつ市": 60.4,
-        "大間町": 88.7, "大鰐町": 51.4, "東北町": 49.3, "平内町": 46.4,
-        "中泊町": 42.9, "七戸町": 42.8, "六ヶ所村": 38.7, "横浜町": 32.8,
-        "蓬田村": 30.2, "鰺ヶ沢町": 24.4, "風間浦村": 23.1, "外ヶ浜町": 20.9,
-        "田子町": 20.1, "東通村": 19.5, "今別町": 17.4, "新郷村": 16.8,
-        "深浦町": 14.6, "佐井村": 12.4, "三戸町": 64.4, "西目屋村": 4.9
-      }
-    },
-    finance: {
-      id: "finance",
-      name: "財政力指数",
-      label: "💰 財政力指数（2022年度: 指数）",
-      unit: "指数",
-      title: "青森県 市町村別財政力指数（2022年度）",
-      subtitle: "地方自治体の財政力の強さを示す指標（単年度）",
-      remarks: "※ 出典：総務省 地方財政状況調査関係資料",
-      palette: "cividis",
-      data: {
-        "六ヶ所村": 1.15, "三沢市": 0.68, "八戸市": 0.64, "青森市": 0.58,
-        "おいらせ町": 0.55, "弘前市": 0.52, "東通村": 0.48, "六戸町": 0.44,
-        "十和田市": 0.43, "むつ市": 0.41, "階上町": 0.39, "黒石市": 0.36,
-        "五所川原市": 0.35, "平川市": 0.34, "東北町": 0.33, "藤崎町": 0.32,
-        "七戸町": 0.31, "平内町": 0.29, "五戸町": 0.28, "南部町": 0.27,
-        "つがる市": 0.26, "野辺地町": 0.26, "田舎館村": 0.25, "鶴田町": 0.24,
-        "板柳町": 0.23, "大間町": 0.22, "大鰐町": 0.21, "中泊町": 0.20,
-        "三戸町": 0.19, "横浜町": 0.19, "田子町": 0.18, "鰺ヶ沢町": 0.17,
-        "深浦町": 0.16, "蓬田村": 0.15, "外ヶ浜町": 0.14, "新郷村": 0.13,
-        "風間浦村": 0.12, "今別町": 0.11, "佐井村": 0.10, "西目屋村": 0.09
-      }
-    },
-    snow: {
-      id: "snow",
-      name: "年間最深積雪量",
-      label: "❄️ 年間最深積雪量（平年値: cm）",
-      unit: "cm",
-      title: "青森県 市町村別年間最深積雪量（平年値）",
-      subtitle: "豪雪地帯・積雪分布の地域傾向",
-      remarks: "※ 出典：気象庁 過去のアメダス気象観測値（平年値・推計）",
-      palette: "blues",
-      data: {
-        "青森市": 111, "弘前市": 92, "五所川原市": 85, "黒石市": 105,
-        "平川市": 98, "西目屋村": 145, "大鰐町": 112, "藤崎町": 80,
-        "田舎館村": 88, "板柳町": 78, "鶴田町": 82, "つがる市": 74,
-        "鰺ヶ沢町": 95, "深浦町": 52, "今別町": 88, "外ヶ浜町": 92,
-        "蓬田村": 96, "中泊町": 76, "平内町": 82, "野辺地町": 75,
-        "七戸町": 68, "東北町": 62, "十和田市": 55, "三沢市": 48,
-        "おいらせ町": 42, "六戸町": 50, "六ヶ所村": 58, "横浜町": 64,
-        "むつ市": 72, "東通村": 60, "大間町": 46, "風間浦村": 52,
-        "佐井村": 58, "八戸市": 35, "階上町": 38, "五戸町": 45,
-        "南部町": 42, "三戸町": 44, "新郷村": 75, "田子町": 65
-      }
-    },
-    agriculture: {
-      id: "agriculture",
-      name: "農業産出額",
-      label: "🚜 農業産出額（2021年推計: 億円）",
-      unit: "億円",
-      title: "青森県 市町村別農業産出額（2021年推計）",
-      subtitle: "野菜・果樹・畜産を含む市町村別農業生産力",
-      remarks: "※ 出典：農林水産省 生産農業所得統計",
-      palette: "greens",
-      data: {
-        "弘前市": 480, "十和田市": 340, "平川市": 230, "青森市": 210,
-        "つがる市": 190, "八戸市": 170, "黒石市": 140, "五戸町": 130,
-        "東北町": 125, "南部町": 115, "七戸町": 110, "五所川原市": 105,
-        "板柳町": 85, "六戸町": 80, "藤崎町": 75, "鶴田町": 70,
-        "おいらせ町": 65, "田舎館村": 55, "田子町": 50, "三戸町": 45,
-        "大鰐町": 40, "新郷村": 38, "六ヶ所村": 35, "三沢市": 32,
-        "東通村": 30, "横浜町": 28, "鰺ヶ沢町": 25, "野辺地町": 20,
-        "平内町": 18, "中泊町": 18, "むつ市": 16, "深浦町": 14,
-        "西目屋村": 10, "蓬田村": 9, "外ヶ浜町": 6, "大間町": 4,
-        "今別町": 3, "階上町": 28, "風間浦村": 2, "佐井村": 2
-      }
-    }
-  };
-
   // --- 4. Application State ---
+
   const state = {
     geojsonData: null,
+    baselinePopulation: {},
+    isPerCapitaMode: false,
     activeVariableKey: null, // Initialized as null (empty state)
     variables: {}, // key -> variable config { id, name, label, unit, title, subtitle, remarks, palette, data }
     currentValues: {}, // key: municipal name, val: number
@@ -378,13 +157,39 @@
     updateStatsSummary();
   }
 
-  // Load verification preset dataset (subtle testing button)
-  function loadPresetData() {
-    state.variables = JSON.parse(JSON.stringify(PRESETS));
-    populateVariableDropdowns();
-    openVariableModal("population");
-    showToast("動作確認用データを読み込みました。作図する項目を選択してください。", "info");
+  // Load e-Stat sample dataset
+  function loadEstatSampleData() {
+    fetch("./data/sugata2026.csv")
+      .then(res => {
+        if (!res.ok) throw new Error("Sample data load failed");
+        return res.text();
+      })
+      .then(text => {
+        parseRawText(text);
+        showToast("「統計でみる市区町村のすがた 2026」データを読み込みました。", "info");
+      })
+      .catch(err => {
+        console.error(err);
+        showToast("サンプルデータの読み込みに失敗しました", "error");
+      });
   }
+  
+  function getEffectiveValues() {
+    if (!state.isPerCapitaMode) return state.currentValues;
+    let eff = {};
+    for (let key in state.currentValues) {
+      let val = state.currentValues[key];
+      let base = state.baselinePopulation[key];
+      if (typeof val === 'number' && typeof base === 'number' && base > 0) {
+        // Compute per 100,000 population
+        eff[key] = (val / base) * 100000;
+      } else {
+        eff[key] = val; // fallback
+      }
+    }
+    return eff;
+  }
+
 
   function openVariableModal(preselectKey = null) {
     const modal = document.getElementById("variable-modal");
@@ -656,6 +461,21 @@
     loadGeoJSON();
     bindEvents();
     initEmptyState();
+    
+    // Fetch baseline population
+    fetch("./data/baseline_population.csv")
+      .then(res => res.text())
+      .then(text => {
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        for(let i=1; i<lines.length; i++) {
+          const parts = lines[i].split(",");
+          if (parts.length >= 3) {
+            state.baselinePopulation[parts[1]] = parseFloat(parts[2]);
+          }
+        }
+        console.log("Baseline population loaded.");
+      })
+      .catch(err => console.error("Failed to load baseline population", err));
   });
 
   // --- 8. Leaflet Map Setup ---
@@ -810,7 +630,7 @@
 
   // --- 9. Classification & Color Engine ---
   function computeBreaks() {
-    const vals = Object.values(state.currentValues).filter(v => typeof v === 'number' && !isNaN(v));
+    const vals = Object.values(getEffectiveValues()).filter(v => typeof v === 'number' && !isNaN(v));
     if (vals.length === 0) {
       state.computedBreaks = [];
       return;
@@ -976,7 +796,7 @@
       style: (feature) => {
         let name = feature.properties.name || feature.properties.N03_004;
         let matchedName = normalizeName(name);
-        let val = matchedName ? state.currentValues[matchedName] : null;
+        let val = matchedName ? getEffectiveValues()[matchedName] : null;
         let fillColor = getColorForValue(val);
         let strokeInfo = getBorderStrokeForFeature(fillColor);
 
@@ -991,7 +811,7 @@
       onEachFeature: (feature, layer) => {
         let rawName = feature.properties.name || feature.properties.N03_004;
         let matchedName = normalizeName(rawName) || rawName;
-        let val = state.currentValues[matchedName];
+        let val = getEffectiveValues()[matchedName];
         let hasVal = (val !== undefined && val !== null && !isNaN(val));
         let displayVal = hasVal ? val.toLocaleString() : "データなし";
 
@@ -1048,7 +868,7 @@
       let centroid = state.dynamicCentroids[m.name];
       if (!centroid) return;
 
-      let val = state.currentValues[m.name];
+      let val = getEffectiveValues()[m.name];
       let hasVal = (val !== undefined && val !== null && !isNaN(val));
       let shortVal = hasVal ? formatNumber(val) : "";
 
@@ -1176,7 +996,7 @@
 
       // Count municipalities in this range
       let count = 0;
-      Object.values(state.currentValues).forEach(v => {
+      Object.values(getEffectiveValues()).forEach(v => {
         if (typeof v === 'number' && !isNaN(v)) {
           if (i === numClasses - 1) {
             if (v >= bMin && v <= bMax) count++;
@@ -1215,7 +1035,7 @@
 
   // --- 12. Statistics Engine ---
   function updateStatsSummary() {
-    const vals = Object.entries(state.currentValues)
+    const vals = Object.entries(getEffectiveValues())
       .filter(([name, v]) => typeof v === 'number' && !isNaN(v));
 
     const countEl = document.getElementById("stat-count");
@@ -1272,7 +1092,7 @@
     const unitEl = document.getElementById("detail-muni-unit");
     const extraEl = document.getElementById("detail-muni-extra");
 
-    const val = state.currentValues[muniName];
+    const val = getEffectiveValues()[muniName];
     if (val === undefined || val === null || isNaN(val)) {
       nameEl.textContent = muniName;
       valEl.innerHTML = `データなし`;
@@ -1282,7 +1102,7 @@
     }
 
     // Calculate Rank and Percentage of Total
-    const allVals = Object.entries(state.currentValues)
+    const allVals = Object.entries(getEffectiveValues())
       .filter(([n, v]) => typeof v === 'number' && !isNaN(v))
       .sort((a, b) => b[1] - a[1]);
 
@@ -1326,7 +1146,7 @@
         isVisible = matchName || matchCode || matchType;
       }
 
-      let val = state.currentValues[m.name];
+      let val = getEffectiveValues()[m.name];
       let hasVal = (val !== undefined && val !== null && !isNaN(val));
       if (hasVal) matchedCount++;
 
@@ -1551,7 +1371,7 @@
     const colName = curVar ? curVar.name : "数値";
     let csv = `\uFEFF自治体コード,市町村名,区分,${colName}\n`;
     AOMORI_MUNICIPALITIES.forEach(m => {
-      let v = state.currentValues[m.name];
+      let v = getEffectiveValues()[m.name];
       let valStr = (v !== undefined && v !== null && !isNaN(v)) ? v : "";
       csv += `${m.code},${m.name},${m.type},${valStr}\n`;
     });
@@ -1821,7 +1641,7 @@
     // Subtle Verification Preset Button in CSV card
     const btnPresetSubtle = document.getElementById("btn-load-preset-subtle");
     if (btnPresetSubtle) {
-      btnPresetSubtle.addEventListener("click", loadPresetData);
+      btnPresetSubtle.addEventListener("click", loadEstatSampleData);
     }
 
     // Step 1 Modal Open Button
@@ -1871,6 +1691,26 @@
     document.getElementById("btn-export-csv").addEventListener("click", exportCurrentCSV);
     const exportCsvTab = document.getElementById("btn-export-csv-tab");
     if (exportCsvTab) exportCsvTab.addEventListener("click", exportCurrentCSV);
+    const chkPerCapita = document.getElementById("chk-per-capita");
+    if (chkPerCapita) {
+      chkPerCapita.addEventListener("change", (e) => {
+        state.isPerCapitaMode = e.target.checked;
+        if (state.isPerCapitaMode) {
+          state.unit = state.unit ? state.unit.replace("単位：", "単位：") + " (10万人あたり)" : "単位：人/10万人";
+        } else {
+          const v = state.variables[state.activeVariableKey];
+          state.unit = v && v.unit ? `単位：${v.unit}` : "";
+        }
+        const displayUnit = document.getElementById("display-legend-unit");
+        const unitInput = document.getElementById("map-unit-input");
+        if (displayUnit) displayUnit.textContent = state.unit;
+        if (unitInput) unitInput.value = state.unit;
+        
+        updateDataTable();
+        renderGeoJSONLayer();
+        updateStatsSummary();
+      });
+    }
 
     // File Drag & Drop
     const dropZone = document.getElementById("drop-zone");
