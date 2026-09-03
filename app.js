@@ -77,6 +77,12 @@
     magma: ["#000004", "#3b0f70", "#8c2981", "#de4968", "#fe9f6d", "#fcfdbf"],
     paired: ["#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928"],
     set1: ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#ffff33", "#a65628", "#f781bf"],
+    // Dedicated Z-score / Diverging Palettes
+    div_blue_red: ["#2166ac", "#67a9cf", "#d1e5f0", "#f7f7f7", "#fddbc7", "#ef8a62", "#b2182b"],
+    div_red_blue: ["#b2182b", "#ef8a62", "#fddbc7", "#f7f7f7", "#d1e5f0", "#67a9cf", "#2166ac"],
+    div_orange_purple: ["#b35806", "#f1a340", "#fee0b6", "#f7f7f7", "#d8daeb", "#998ec3", "#542788"],
+    div_brown_teal: ["#8c510a", "#d8b365", "#f6e8c3", "#f5f5f5", "#c7eae5", "#5ab4ac", "#01665e"],
+    div_spectral: ["#d53e4f", "#fdae61", "#fee08b", "#ffffbf", "#e6f598", "#abdda4", "#2b83ba"],
     patterns: ["url(#pat-0)", "url(#pat-1)", "url(#pat-2)", "url(#pat-3)", "url(#pat-4)", "url(#pat-5)", "url(#pat-6)", "url(#pat-7)"]
   };
 
@@ -103,7 +109,8 @@
     customBreaks: [],
     mapBg: "none",
     strokeOpacity: 0.8,
-    strokeColor: "auto",
+    strokeColor: "dark", // Uniform dark slate border by default for crisp consistent lines
+    showOuterBorder: false,
     labelMode: "none",
     labelContent: "name_val",
     legendPosition: "rightmiddle",
@@ -111,12 +118,15 @@
     activeRegion: "all",
     leafletMap: null,
     geojsonLayer: null,
+    outerBorderLayer: null,
     labelGroup: null,
     dynamicCentroids: {},
     computedBreaks: [],
     selectedMuni: null,
     miniMap: null,
-    miniMapLayer: null
+    miniMapLayer: null,
+    transformMode: "raw", // 'raw' | 'per_capita' | 'zscore' | 'tscore'
+    perCapitaMultiplier: 10000
   };
 
   // --- 5. Variable Store Management & Multi-Variable Modal ---
@@ -177,19 +187,58 @@
   }
   
   function getEffectiveValues() {
-    if (!state.isPerCapitaMode) return state.currentValues;
-    let eff = {};
-    for (let key in state.currentValues) {
-      let val = state.currentValues[key];
-      let base = state.baselinePopulation[key];
-      if (typeof val === 'number' && typeof base === 'number' && base > 0) {
-        // Compute per N population based on multiplier
-        eff[key] = (val / base) * (state.perCapitaMultiplier || 10000);
-      } else {
-        eff[key] = val; // fallback
+    let baseVals = {};
+    if (state.transformMode === "per_capita" || state.isPerCapitaMode) {
+      for (let key in state.currentValues) {
+        let val = state.currentValues[key];
+        let base = state.baselinePopulation[key];
+        if (typeof val === 'number' && typeof base === 'number' && base > 0) {
+          baseVals[key] = (val / base) * (state.perCapitaMultiplier || 10000);
+        } else {
+          baseVals[key] = val;
+        }
       }
+    } else {
+      baseVals = { ...state.currentValues };
     }
-    return eff;
+
+    if (state.transformMode === "zscore" || state.transformMode === "tscore") {
+      const validNums = Object.values(baseVals).filter(v => typeof v === 'number' && !isNaN(v));
+      if (validNums.length < 2) return baseVals;
+
+      const sum = validNums.reduce((a, b) => a + b, 0);
+      const mean = sum / validNums.length;
+      const variance = validNums.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0) / (validNums.length - 1 || 1);
+      const sd = Math.sqrt(variance) || 1;
+
+      let transformed = {};
+      for (let key in baseVals) {
+        let v = baseVals[key];
+        if (typeof v === 'number' && !isNaN(v)) {
+          let z = (v - mean) / sd;
+          if (state.transformMode === "zscore") {
+            transformed[key] = Math.round(z * 100) / 100;
+          } else {
+            transformed[key] = Math.round((50 + 10 * z) * 10) / 10;
+          }
+        } else {
+          transformed[key] = v;
+        }
+      }
+      return transformed;
+    }
+
+    return baseVals;
+  }
+
+  function getEffectiveUnit() {
+    if (state.transformMode === "zscore") return "Zスコア (平均=0, SD=1)";
+    if (state.transformMode === "tscore") return "偏差値 (平均=50, SD=10)";
+    if (state.transformMode === "per_capita") {
+      const mult = state.perCapitaMultiplier || 10000;
+      return mult === 1 ? "1人あたり" : mult === 1000 ? "1,000人あたり" : mult === 100000 ? "10万人あたり" : "1万人あたり";
+    }
+    return state.unit || "";
   }
 
 
@@ -433,6 +482,9 @@
     
     if (!s) return { matched: null, type: "empty", original: orig };
 
+    // Normalize 'ケ' (large) / 'ｹ' (half-width) to 'ヶ' (small) for matching
+    let sCanonical = s.replace(/[ケｹ]/g, "ヶ");
+
     // 1. Municipality Code Match
     for (let m of AOMORI_MUNICIPALITIES) {
       if (m.code === s || m.code === "0" + s || m.code.slice(1) === s) {
@@ -440,24 +492,37 @@
       }
     }
 
-    // 2. Direct Match
+    // 2. Direct Match (with exact or ケ/ヶ normalized)
     for (let m of AOMORI_MUNICIPALITIES) {
+      let mCanonical = m.name.replace(/[ケｹ]/g, "ヶ");
       if (m.name === s) {
-        return { matched: m.name, type: (orig === m.name ? "exact" : "normalized"), original: orig };
+        return { matched: m.name, type: "exact", original: orig };
+      }
+      if (mCanonical === sCanonical) {
+        return { matched: m.name, type: "corrected", original: orig };
       }
     }
 
-    // 3. Match without Suffix ('市', '町', '村')
+    // 3. Match without Suffix ('市', '町', '村') - Auto-completing missing suffix
     for (let m of AOMORI_MUNICIPALITIES) {
       let base = m.name.replace(/[市町村]$/, "");
-      if (s === base || s === base + "市" || s === base + "町" || s === base + "村") {
-        return { matched: m.name, type: (orig === m.name ? "exact" : "corrected"), original: orig };
+      let baseCanonical = base.replace(/[ケｹ]/g, "ヶ");
+
+      if (s === base || sCanonical === baseCanonical) {
+        return { matched: m.name, type: "suffix_completed", original: orig };
+      }
+      if (s === base + "市" || s === base + "町" || s === base + "村" ||
+          sCanonical === baseCanonical + "市" || sCanonical === baseCanonical + "町" || sCanonical === baseCanonical + "村") {
+        return { matched: m.name, type: "corrected", original: orig };
       }
     }
 
     // 4. Hiragana / Katakana / Legacy Merger Alias Match
     if (ALIAS_TO_STANDARD[s]) {
       return { matched: ALIAS_TO_STANDARD[s], type: "alias", original: orig };
+    }
+    if (ALIAS_TO_STANDARD[sCanonical]) {
+      return { matched: ALIAS_TO_STANDARD[sCanonical], type: "alias", original: orig };
     }
 
     return { matched: null, type: "unmatched", original: orig };
@@ -614,8 +679,14 @@
       state.miniMap.removeLayer(state.miniMapLayer);
     }
 
+    computeBreaks();
+
     let values = getEffectiveValues();
-    let palette = PALETTES[state.paletteKey] || PALETTES.blues;
+    const v = state.variables[state.activeVariableKey];
+    const lbl = document.getElementById("mini-map-variable-label");
+    if (lbl) {
+      lbl.textContent = v ? `(${v.name})` : "(データ未選択)";
+    }
 
     state.miniMapLayer = L.geoJSON(state.geojsonData, {
       style: (feature) => {
@@ -623,13 +694,14 @@
         let matchedName = normalizeName(rawName) || rawName;
         let val = values[matchedName];
         let color = getColorForValue(val);
+        let strokeInfo = getBorderStrokeForFeature(color);
 
         return {
           fillColor: color,
           fillOpacity: 0.85,
-          color: "#475569",
-          weight: 0.8,
-          opacity: 0.8
+          color: strokeInfo.color,
+          weight: Math.max(0.8, strokeInfo.weight * 0.7),
+          opacity: 0.95
         };
       },
       onEachFeature: (feature, layer) => {
@@ -641,7 +713,7 @@
 
         layer.bindTooltip(`
           <div style="font-weight:700; font-size:0.85rem;">${matchedName}</div>
-          <div style="color:#60a5fa; font-size:0.78rem;">${displayVal}</div>
+          <div style="color:#60a5fa; font-size:0.78rem;">${displayVal} ${getEffectiveUnit()}</div>
         `, { sticky: true });
 
         layer.on("click", () => {
@@ -662,13 +734,32 @@
       }
     }).addTo(state.miniMap);
 
-    const legendBar = document.getElementById("mini-map-legend-bar");
-    const varLabel = document.getElementById("mini-map-variable-label");
-    if (legendBar && varLabel) {
-      const curVar = state.variables[state.activeVariableKey];
-      varLabel.textContent = curVar ? `(${curVar.name})` : "(データ未入力)";
-      legendBar.innerHTML = palette.map(c => `<span style="background:${c};"></span>`).join("");
+    renderMiniMapLegend();
+  }
+
+  function renderMiniMapLegend() {
+    const legendEl = document.getElementById("mini-map-legend-bar");
+    if (!legendEl) return;
+
+    const breaks = state.computedBreaks;
+    if (!breaks || breaks.length < 2) {
+      legendEl.innerHTML = `<span class="text-muted">（凡例未生成）</span>`;
+      return;
     }
+
+    const numClasses = breaks.length - 1;
+    let items = [];
+    for (let i = 0; i < numClasses; i++) {
+      let valLow = breaks[i];
+      let color = getColorForValue(valLow);
+      items.push(`<span style="background:${color}; flex:1; height:12px; border-radius:2px;" title="${valLow.toFixed(1)}"></span>`);
+    }
+
+    legendEl.innerHTML = `<div class="d-flex align-items-center gap-1 w-100 mb-1">${items.join("")}</div>
+      <div class="d-flex justify-content-between text-muted" style="font-size:0.7rem;">
+        <span>${breaks[0].toLocaleString(undefined, {maximumFractionDigits:1})}</span>
+        <span>${breaks[breaks.length - 1].toLocaleString(undefined, {maximumFractionDigits:1})}</span>
+      </div>`;
   }
 
   function updateMapBackgroundTile() {
@@ -870,44 +961,59 @@
     return rgbToHex(r, g, b);
   }
 
-  // Determine optimal stroke color and weight per feature based on brightness/color
+  // Determine optimal stroke color and weight per feature based on brightness/color & patterns
   function getBorderStrokeForFeature(fillColor) {
-    if (fillColor && fillColor.startsWith("url")) {
-      return { color: "#000000", weight: 1.5 };
-    }
-    
-    let mode = state.strokeColor || "auto";
+    let mode = state.strokeColor || "dark";
     if (mode === "none") {
       return { color: "transparent", weight: 0 };
     }
-    if (mode === "white") {
-      return { color: "#ffffff", weight: 1.2 };
+
+    // Handle SVG Pattern Fills (e.g. url(#pat-0) ~ url(#pat-7))
+    if (fillColor && fillColor.startsWith("url")) {
+      if (fillColor.includes("pat-7") || fillColor.includes("pat-6") || fillColor.includes("pat-5")) {
+        return { color: "#ffffff", weight: 2.0 };
+      }
+      return { color: "#0f172a", weight: 1.8 };
     }
-    if (mode === "dark") {
-      return { color: "#475569", weight: 1.2 };
-    }
-    if (mode === "black") {
-      return { color: "#0f172a", weight: 1.6 };
-    }
-    
+
     if (fillColor === "transparent") {
-      return { color: "#475569", weight: 1.3 }; // Slate-600 for clear visibility
+      return { color: "#475569", weight: 1.5 };
+    }
+
+    const rgb = hexToRgb(fillColor || "#ffffff");
+    const lum = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+    const isVeryDark = (lum < 60);
+
+    if (mode === "white") {
+      return { color: "#ffffff", weight: 1.8 };
+    }
+
+    if (mode === "black") {
+      if (isVeryDark) {
+        return { color: "#ffffff", weight: 2.0 };
+      }
+      return { color: "#000000", weight: 1.8 };
     }
 
     if (mode === "match_palette") {
-      return { color: darkenHex(fillColor, 0.45), weight: 1.3 };
+      if (isVeryDark) {
+        return { color: "#ffffff", weight: 2.0 };
+      }
+      return { color: darkenHex(fillColor, 0.4), weight: 1.6 };
     }
 
-    // Default: "auto" (Adaptive Brightness / Contrast)
-    // For light/bright polygons -> use dark crisp slate border (#475569) so boundaries are clearly visible!
-    // For dark/saturated polygons -> use crisp clean white border (#ffffff)
-    const rgb = hexToRgb(fillColor);
-    const lum = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
-    if (lum > 165) {
-      return { color: "#475569", weight: 1.3 };
-    } else {
-      return { color: "#ffffff", weight: 1.2 };
+    if (mode === "auto") {
+      if (lum < 150) {
+        return { color: "#ffffff", weight: 2.0 };
+      }
+      return { color: "#1e293b", weight: 1.5 };
     }
+
+    // Default ("dark"): Uniform dark slate border across ALL municipalities for crisp consistent lines!
+    if (isVeryDark) {
+      return { color: "#ffffff", weight: 2.0 };
+    }
+    return { color: "#334155", weight: 1.5 };
   }
 
   function getColorForValue(val) {
@@ -982,22 +1088,30 @@
         let rawName = feature.properties.name || feature.properties.N03_004;
         let matchedName = normalizeName(rawName) || rawName;
         let val = getEffectiveValues()[matchedName];
+        let rawVal = state.currentValues[matchedName];
         let hasVal = (val !== undefined && val !== null && !isNaN(val));
         let displayVal = hasVal ? val.toLocaleString() : "データなし";
+        let extraInfo = "";
+
+        if (hasVal && (state.transformMode === "zscore" || state.transformMode === "tscore")) {
+          extraInfo = `<div style="color:#cbd5e1; font-size:0.75rem; margin-top:2px;">(実測値: ${rawVal !== undefined ? rawVal.toLocaleString() : 'なし'})</div>`;
+        }
 
         // Interactive hover tooltip
         layer.bindTooltip(`
           <div style="font-weight:700; font-size:0.9rem;">${matchedName}</div>
-          <div style="color:#60a5fa; font-size:0.82rem; margin-top:2px;">
-            ${displayVal} <small style="color:#cbd5e1">${state.unit}</small>
+          <div style="color:#60a5fa; font-size:0.85rem; margin-top:2px;">
+            ${displayVal} <small style="color:#cbd5e1">${getEffectiveUnit()}</small>
           </div>
+          ${extraInfo}
         `, { sticky: true, direction: 'top', offset: [0, -10] });
 
         layer.on({
           mouseover: (e) => {
             let l = e.target;
+            let currentWeight = (l.options && l.options.weight) || 1.2;
             l.setStyle({
-              weight: strokeWeight + 2,
+              weight: currentWeight + 2,
               color: "#38bdf8",
               fillOpacity: 1.0
             });
@@ -1012,6 +1126,24 @@
         });
       }
     }).addTo(state.leafletMap);
+
+    // Render Prefecture Outer Boundary Line Overlay (県境・海岸線の統一強調表示)
+    if (state.outerBorderLayer) {
+      state.leafletMap.removeLayer(state.outerBorderLayer);
+      state.outerBorderLayer = null;
+    }
+
+    if (state.showOuterBorder) {
+      state.outerBorderLayer = L.geoJSON(state.geojsonData, {
+        style: {
+          color: "#0f172a",
+          weight: 2.2,
+          fill: false,
+          opacity: 0.95
+        },
+        interactive: false
+      }).addTo(state.leafletMap);
+    }
 
     renderLabelsLayer();
     renderLegend();
@@ -1225,6 +1357,7 @@
       medianEl.textContent = "-";
       maxEl.textContent = "-";
       minEl.textContent = "-";
+      renderDistributionChart([]);
       return;
     }
 
@@ -1253,6 +1386,196 @@
     
     minEl.textContent = `${formatNumber(minEntry[1])} (${minEntry[0]})`;
     minEl.title = `${minEntry[0]}: ${minEntry[1].toLocaleString()}`;
+
+    renderDistributionChart(vals);
+  }
+
+  // --- SVG Histogram & Kernel Density Curve Renderer ---
+  function renderDistributionChart(valEntries) {
+    const svg = document.getElementById("dist-chart-svg");
+    const badge = document.getElementById("dist-skew-badge");
+    const adviceText = document.getElementById("dist-zscore-advice-text");
+    const adviceBox = document.getElementById("dist-zscore-advice");
+    const minLabel = document.getElementById("dist-chart-min-label");
+    const meanLabel = document.getElementById("dist-chart-mean-label");
+    const maxLabel = document.getElementById("dist-chart-max-label");
+
+    if (!svg) return;
+
+    if (!valEntries || valEntries.length < 3) {
+      svg.innerHTML = `<text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-size="12">データ入力後にヒストグラムと密度曲線を描画します</text>`;
+      if (badge) {
+        badge.textContent = "未判定";
+        badge.className = "badge badge-secondary";
+        badge.style.background = "#94a3b8";
+      }
+      if (adviceText) {
+        adviceText.textContent = "データを読み込むと、分布の歪み（歪度）およびZスコア・偏差値利用の可否アドバイスが表示されます。";
+      }
+      if (minLabel) minLabel.textContent = "最小: -";
+      if (meanLabel) meanLabel.textContent = "平均: -";
+      if (maxLabel) maxLabel.textContent = "最大: -";
+      return;
+    }
+
+    const nums = valEntries.map(e => e[1]).sort((a, b) => a - b);
+    const n = nums.length;
+    const min = nums[0];
+    const max = nums[nums.length - 1];
+    const range = (max - min) || 1;
+
+    const sum = nums.reduce((a, b) => a + b, 0);
+    const mean = sum / n;
+    
+    // Variance & Standard Deviation
+    const variance = nums.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0) / (n - 1 || 1);
+    const sd = Math.sqrt(variance) || 1;
+
+    // Skewness (歪度)
+    const m3 = nums.reduce((acc, v) => acc + Math.pow(v - mean, 3), 0) / n;
+    const skewness = sd > 0 ? (m3 / Math.pow(sd, 3)) : 0;
+
+    // Median
+    let median = 0;
+    let mid = Math.floor(n / 2);
+    median = (n % 2 === 0) ? (nums[mid - 1] + nums[mid]) / 2 : nums[mid];
+
+    if (minLabel) minLabel.textContent = `最小: ${formatNumber(min)}`;
+    if (meanLabel) meanLabel.textContent = `平均: ${formatNumber(mean)}`;
+    if (maxLabel) maxLabel.textContent = `最大: ${formatNumber(max)}`;
+
+    // 7 Equal Width Bins
+    const numBins = 7;
+    const binWidth = range / numBins;
+    const bins = Array(numBins).fill(0);
+
+    nums.forEach(v => {
+      let idx = Math.floor((v - min) / binWidth);
+      if (idx >= numBins) idx = numBins - 1;
+      bins[idx]++;
+    });
+
+    const maxBinCount = Math.max(...bins, 1);
+
+    // SVG Layout Bounds
+    const svgW = 500;
+    const svgH = 180;
+    const padL = 30;
+    const padR = 20;
+    const padT = 20;
+    const padB = 30;
+    const chartW = svgW - padL - padR;
+    const chartH = svgH - padT - padB;
+
+    let svgHtml = ``;
+
+    // 1. Grid Lines
+    for (let i = 0; i <= 3; i++) {
+      let y = padT + (chartH / 3) * i;
+      svgHtml += `<line x1="${padL}" y1="${y}" x2="${svgW - padR}" y2="${y}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3,3" />`;
+    }
+
+    // 2. Render Histogram Bars
+    const barWidth = chartW / numBins;
+    bins.forEach((count, i) => {
+      let barH = (count / maxBinCount) * (chartH - 12);
+      let x = padL + i * barWidth + 2;
+      let y = padT + (chartH - barH);
+      let w = Math.max(barWidth - 4, 2);
+      
+      svgHtml += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${barH.toFixed(1)}" fill="#bfdbfe" fill-opacity="0.75" stroke="#2563eb" stroke-width="1.2" rx="3">
+        <title>区間: ${(min + i * binWidth).toFixed(1)} 〜 ${(min + (i + 1) * binWidth).toFixed(1)} (${count}自治体)</title>
+      </rect>`;
+      if (count > 0) {
+        svgHtml += `<text x="${(x + w / 2).toFixed(1)}" y="${(y - 4).toFixed(1)}" font-size="10" fill="#1e40af" text-anchor="middle" font-weight="bold">${count}</text>`;
+      }
+    });
+
+    // 3. Render Kernel Density Estimation (KDE) Curve
+    const iqr = (nums[Math.floor(n * 0.75)] - nums[Math.floor(n * 0.25)]) || sd;
+    const bw = (0.9 * Math.min(sd, iqr / 1.34) * Math.pow(n, -0.2)) || (range / 8);
+
+    const pts = 50;
+    let kdeMax = 0;
+    const kdePoints = [];
+
+    for (let p = 0; p <= pts; p++) {
+      let xVal = min + (range / pts) * p;
+      let density = 0;
+      nums.forEach(xi => {
+        let u = (xVal - xi) / bw;
+        density += (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * u * u);
+      });
+      density = density / (n * bw);
+      if (density > kdeMax) kdeMax = density;
+      kdePoints.push({ xVal, density });
+    }
+
+    let pathD = `M `;
+    kdePoints.forEach((pt, idx) => {
+      let x = padL + ((pt.xVal - min) / range) * chartW;
+      let y = padT + chartH - (kdeMax > 0 ? (pt.density / kdeMax) * (chartH - 15) : 0);
+      pathD += `${idx === 0 ? '' : 'L '}${x.toFixed(1)},${y.toFixed(1)} `;
+    });
+
+    let areaD = pathD + `L ${(padL + chartW).toFixed(1)},${(padT + chartH).toFixed(1)} L ${padL.toFixed(1)},${(padT + chartH).toFixed(1)} Z`;
+
+    svgHtml += `<path d="${areaD}" fill="rgba(37, 99, 235, 0.15)" />`;
+    svgHtml += `<path d="${pathD}" fill="none" stroke="#1d4ed8" stroke-width="2.5" stroke-linejoin="round" />`;
+
+    // 4. Mean & Median Vertical Lines
+    let meanX = padL + Math.max(0, Math.min(1, (mean - min) / range)) * chartW;
+    let medianX = padL + Math.max(0, Math.min(1, (median - min) / range)) * chartW;
+
+    // Mean Line (Blue)
+    svgHtml += `<line x1="${meanX.toFixed(1)}" y1="${padT}" x2="${meanX.toFixed(1)}" y2="${padT + chartH}" stroke="#1d4ed8" stroke-width="2" stroke-dasharray="4,2" />`;
+    svgHtml += `<text x="${meanX.toFixed(1)}" y="${padT - 4}" font-size="10" fill="#1d4ed8" text-anchor="middle" font-weight="bold">平均</text>`;
+
+    // Median Line (Orange)
+    if (Math.abs(meanX - medianX) > 10) {
+      svgHtml += `<line x1="${medianX.toFixed(1)}" y1="${padT}" x2="${medianX.toFixed(1)}" y2="${padT + chartH}" stroke="#ea580c" stroke-width="1.8" stroke-dasharray="2,2" />`;
+      svgHtml += `<text x="${medianX.toFixed(1)}" y="${padT - 4}" font-size="10" fill="#c2410c" text-anchor="middle" font-weight="bold">中央</text>`;
+    }
+
+    svg.innerHTML = svgHtml;
+
+    // 5. Update Badge & Advice Text
+    const absSkew = Math.abs(skewness);
+
+    if (badge) {
+      if (absSkew <= 0.45) {
+        badge.textContent = `🟢 左右対称 (正規分布型 : 歪度 ${skewness.toFixed(2)})`;
+        badge.className = "badge badge-success";
+        badge.style.background = "#16a34a";
+      } else if (absSkew <= 0.95) {
+        badge.textContent = `🟡 やや偏りあり (歪度 ${skewness.toFixed(2)})`;
+        badge.className = "badge badge-warning";
+        badge.style.background = "#ca8a04";
+      } else {
+        badge.textContent = `🔴 強い偏り・歪みあり (歪度 ${skewness.toFixed(2)})`;
+        badge.className = "badge badge-danger";
+        badge.style.background = "#dc2626";
+      }
+    }
+
+    if (adviceBox && adviceText) {
+      if (absSkew <= 0.45) {
+        adviceBox.style.background = "#eff6ff";
+        adviceBox.style.borderColor = "#93c5fd";
+        adviceText.innerHTML = `<strong style="color:#1d4ed8;">【判定：Zスコア / 偏差値表示に最適】</strong><br>
+        データが平均値を中心として綺麗な左右対称の山型（歪度: <b>${skewness.toFixed(2)}</b>）です。平均からの離れ具合が全自治体で均等に評価できるため、<b>「Zスコア」または「偏差値」表示が大変適しています</b>。`;
+      } else if (absSkew <= 0.95) {
+        adviceBox.style.background = "#fefce8";
+        adviceBox.style.borderColor = "#fef08a";
+        adviceText.innerHTML = `<strong style="color:#a16207;">【判定：Zスコア使用可能（やや偏りあり）】</strong><br>
+        データがやや${skewness > 0 ? '右側（高数値方向）' : '左側'}に偏っています（歪度: <b>${skewness.toFixed(2)}</b>）。Zスコアや偏差値表示も十分ご利用いただけますが、平均から離れた極端な自治体に階級が引っ張られる傾向があります。`;
+      } else {
+        adviceBox.style.background = "#fef2f2";
+        adviceBox.style.borderColor = "#fca5a5";
+        adviceText.innerHTML = `<strong style="color:#dc2626;">【判定：注意・歪みが大きい分布】</strong><br>
+        一部の自治体（上位市など）の数値が突出しており、データが${skewness > 0 ? '右側（高数値方向）' : '左側'}に強く偏っています（歪度: <b>${skewness.toFixed(2)}</b>）。Zスコアを使うと多数の自治体が同じ階級に集中する可能性があるため、<b>「実測値」「人口あたり数値」</b>や<b>「Jenks自然段階分類」</b>での作図がおすすめです。`;
+      }
+    }
   }
 
   // --- 13. Municipality Detail Popup Card ---
@@ -1500,30 +1823,108 @@
     reader.readAsText(file, "utf-8");
   }
 
-  function renderNormalizationReport(autoCorrected, unmatched, totalRows) {
+  // --- Data Quality & Anomaly Checker ---
+  function checkDataQuality(currentValues) {
+    const valsObj = currentValues || getEffectiveValues();
+    
+    // 1. Missing Municipalities Check
+    const missing = AOMORI_MUNICIPALITIES
+      .filter(m => valsObj[m.name] === undefined || valsObj[m.name] === null || isNaN(valsObj[m.name]))
+      .map(m => m.name);
+
+    // 2. Anomaly / Outlier Check
+    const validEntries = Object.entries(valsObj)
+      .filter(([name, val]) => typeof val === "number" && !isNaN(val));
+
+    const anomalies = [];
+
+    if (validEntries.length >= 4) {
+      const vals = validEntries.map(e => e[1]).sort((a, b) => a - b);
+      const n = vals.length;
+      
+      const q1 = vals[Math.floor(n * 0.25)];
+      const q3 = vals[Math.floor(n * 0.75)];
+      const iqr = q3 - q1;
+      const lowerFence = q1 - 2.5 * iqr;
+      const upperFence = q3 + 2.5 * iqr;
+
+      const sum = vals.reduce((a, b) => a + b, 0);
+      const mean = sum / n;
+      const positiveCount = vals.filter(v => v >= 0).length;
+      const isMostlyNonNegative = (positiveCount / n) >= 0.85;
+
+      validEntries.forEach(([name, val]) => {
+        if (isMostlyNonNegative && val < 0) {
+          anomalies.push({
+            name,
+            val,
+            reason: `負の数 (${val}) が入力されています。数値をご確認ください。`
+          });
+        } else if (iqr > 0 && (val > upperFence || val < lowerFence)) {
+          let times = mean > 0 ? (val / mean).toFixed(1) : null;
+          let detail = times && parseFloat(times) > 2.5 ? ` (平均値の約 ${times}倍)` : "";
+          anomalies.push({
+            name,
+            val,
+            reason: `全体（平均: ${mean.toLocaleString(undefined, {maximumFractionDigits:1})}）から大きく外れた特異な値です${detail}。入力ミスがないかご確認ください。`
+          });
+        }
+      });
+    }
+
+    return {
+      missing,
+      anomalies
+    };
+  }
+
+  function renderNormalizationReport(autoCorrected = [], suffixCompleted = [], unmatched = [], totalRows = 0, customVals = null) {
     const banner = document.getElementById("normalization-report-banner");
     const body = document.getElementById("norm-banner-body");
     if (!banner || !body) return;
 
-    if (autoCorrected.length === 0 && unmatched.length === 0) {
+    const quality = checkDataQuality(customVals || getEffectiveValues());
+
+    if (autoCorrected.length === 0 && suffixCompleted.length === 0 && unmatched.length === 0 && quality.missing.length === 0 && quality.anomalies.length === 0) {
       banner.classList.add("hidden");
       return;
     }
 
-    let html = `<div class="d-flex flex-wrap gap-2 mb-1">
-      <span class="badge badge-primary">取り込み: ${totalRows}行</span>
+    let html = `<div class="d-flex flex-wrap gap-2 mb-2">
+      ${totalRows > 0 ? `<span class="badge badge-primary">取り込み: ${totalRows}行</span>` : ''}
+      ${suffixCompleted.length > 0 ? `<span class="badge badge-info">「市町村」補完: ${suffixCompleted.length}件</span>` : ''}
       ${autoCorrected.length > 0 ? `<span class="badge badge-success">自動補正: ${autoCorrected.length}件</span>` : ''}
-      ${unmatched.length > 0 ? `<span class="badge badge-warning">未一致: ${unmatched.length}件</span>` : ''}
+      ${quality.missing.length > 0 ? `<span class="badge badge-warning">未入力: ${quality.missing.length} / 40</span>` : '<span class="badge badge-success">40自治体 入力完了</span>'}
+      ${quality.anomalies.length > 0 ? `<span class="badge badge-danger" style="background:#dc2626; color:#ffffff;">要確認: ${quality.anomalies.length}件の異常値</span>` : ''}
     </div>`;
+
+    if (suffixCompleted.length > 0) {
+      let items = suffixCompleted.map(item => `<b>「${item.original}」</b>→ <strong class="text-blue">${item.corrected}</strong>`).join("、");
+      html += `<div class="mt-1" style="color:#1d4ed8;"><i class="fa-solid fa-square-check me-1"></i> 「市・町・村」の省略を自動補完しました: ${items}</div>`;
+    }
 
     if (autoCorrected.length > 0) {
       let items = autoCorrected.map(item => `<b>「${item.original}」</b>→ <strong class="text-blue">${item.corrected}</strong>`).join("、");
-      html += `<div class="mt-1" style="color:#15803d;"><i class="fa-solid fa-wand-magic-sparkles me-1"></i> 表記揺れを自動正順化しました: ${items}</div>`;
+      html += `<div class="mt-1" style="color:#15803d;"><i class="fa-solid fa-wand-magic-sparkles me-1"></i> 表記揺れ・旧自治体名を自動補正しました: ${items}</div>`;
     }
 
     if (unmatched.length > 0) {
       let items = unmatched.map(item => `<b>「${item}」</b>`).join("、");
       html += `<div class="mt-1 text-red"><i class="fa-solid fa-triangle-exclamation me-1"></i> 青森県の40市町村と一致しなかった名称: ${items}</div>`;
+    }
+
+    if (quality.missing.length > 0) {
+      let sampleMissing = quality.missing.slice(0, 6).join("、");
+      let moreText = quality.missing.length > 6 ? ` など計 ${quality.missing.length}自治体` : '';
+      html += `<div class="mt-1" style="color:#c2410c;"><i class="fa-solid fa-circle-exclamation me-1"></i> <strong>データ欠測の検出:</strong> 40自治体中 ${quality.missing.length}自治体の数値が未入力（欠測）です（未入力例: ${sampleMissing}${moreText}）。</div>`;
+    }
+
+    if (quality.anomalies.length > 0) {
+      html += `<div class="mt-2 pt-2 border-top text-red"><strong style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation me-1"></i> 異常値の可能性（数値入力の注意表示）:</strong><ul class="mb-0 mt-1 ps-3" style="font-size:0.82rem; color:#b91c1c;">`;
+      quality.anomalies.forEach(anom => {
+        html += `<li><b>「${anom.name}」</b> (数値: <strong>${anom.val.toLocaleString()}</strong>) - ${anom.reason}</li>`;
+      });
+      html += `</ul></div>`;
     }
 
     body.innerHTML = html;
@@ -1536,6 +1937,7 @@
     if (lines.length === 0) return;
 
     let autoCorrected = [];
+    let suffixCompleted = [];
     let unmatched = [];
     let totalParsedRows = 0;
 
@@ -1569,7 +1971,11 @@
             if (!isNaN(num)) {
               varData[normInfo.matched] = num;
               totalParsedRows++;
-              if (normInfo.type === "corrected" || normInfo.type === "alias") {
+              if (normInfo.type === "suffix_completed") {
+                if (!suffixCompleted.some(a => a.original === nameCand)) {
+                  suffixCompleted.push({ original: nameCand, corrected: normInfo.matched });
+                }
+              } else if (normInfo.type === "corrected" || normInfo.type === "alias") {
                 if (!autoCorrected.some(a => a.original === nameCand)) {
                   autoCorrected.push({ original: nameCand, corrected: normInfo.matched });
                 }
@@ -1598,7 +2004,7 @@
       if (addedKeys.length > 0) {
         populateVariableDropdowns();
         switchActiveVariable(addedKeys[0], true);
-        renderNormalizationReport(autoCorrected, unmatched, totalParsedRows);
+        renderNormalizationReport(autoCorrected, suffixCompleted, unmatched, totalParsedRows, state.variables[addedKeys[0]]?.data);
         showToast(`${addedKeys.length} 項目の変数を検出・設定しました`, "info");
         return;
       }
@@ -1625,7 +2031,11 @@
         if (normInfo.matched && !isNaN(num)) {
           newVals[normInfo.matched] = num;
           count++;
-          if (normInfo.type === "corrected" || normInfo.type === "alias") {
+          if (normInfo.type === "suffix_completed") {
+            if (!suffixCompleted.some(a => a.original === nameCandidate)) {
+              suffixCompleted.push({ original: nameCandidate, corrected: normInfo.matched });
+            }
+          } else if (normInfo.type === "corrected" || normInfo.type === "alias") {
             if (!autoCorrected.some(a => a.original === nameCandidate)) {
               autoCorrected.push({ original: nameCandidate, corrected: normInfo.matched });
             }
@@ -1652,7 +2062,7 @@
       };
       populateVariableDropdowns();
       switchActiveVariable(varKey, false);
-      renderNormalizationReport(autoCorrected, unmatched, count);
+      renderNormalizationReport(autoCorrected, suffixCompleted, unmatched, count, newVals);
       showToast(`${count} 自治体の数値を取り込みました`, "success");
     } else {
       showToast("市町村名と数値の解析に失敗しました。フォーマットをご確認ください。", "error");
@@ -2030,24 +2440,71 @@
       updateStatsSummary();
     }
 
-    const chkPerCapita = document.getElementById("chk-per-capita");
-    const selPerCapita = document.getElementById("select-per-capita-multiplier");
-    
-    if (chkPerCapita) {
-      chkPerCapita.addEventListener("change", (e) => {
-        state.isPerCapitaMode = e.target.checked;
-        if (selPerCapita) state.perCapitaMultiplier = parseInt(selPerCapita.value) || 10000;
-        updatePerCapitaUnit();
-      });
-    }
-    
-    if (selPerCapita) {
-      selPerCapita.addEventListener("change", (e) => {
-        state.perCapitaMultiplier = parseInt(e.target.value) || 10000;
-        if (state.isPerCapitaMode) {
-          updatePerCapitaUnit();
+    function updateZScorePaletteUIState() {
+      const box = document.getElementById("zscore-palette-box");
+      const badge = document.getElementById("zscore-palette-badge");
+      if (!box) return;
+
+      const isZorT = (state.transformMode === "zscore" || state.transformMode === "tscore");
+
+      if (isZorT) {
+        box.classList.remove("disabled-section");
+        box.classList.add("active-section");
+        if (badge) {
+          badge.textContent = "有効（Zスコア・偏差値モード）";
+          badge.style.background = "#2563eb";
         }
+      } else {
+        box.classList.remove("active-section");
+        box.classList.add("disabled-section");
+        if (badge) {
+          badge.textContent = "Zスコア/偏差値選択時に開放";
+          badge.style.background = "#94a3b8";
+        }
+      }
+    }
+
+    // Statistical Transformation Mode Single Dropdown Event
+    const selTransMode = document.getElementById("select-transform-mode");
+    if (selTransMode) {
+      selTransMode.addEventListener("change", (e) => {
+        const val = e.target.value;
+        if (val.startsWith("per_capita")) {
+          state.transformMode = "per_capita";
+          state.isPerCapitaMode = true;
+          state.perCapitaMultiplier = parseInt(val.replace("per_capita_", ""), 10) || 10000;
+        } else {
+          state.transformMode = val;
+          state.isPerCapitaMode = false;
+        }
+
+        if (state.transformMode === "zscore" || state.transformMode === "tscore") {
+          // Automatically set default palette to 'div_blue_red' (Diverging Blue-White-Red) for Z-score/T-score
+          if (!state.useCustomGradient) {
+            state.paletteKey = "div_blue_red";
+            document.querySelectorAll(".palette-btn").forEach(b => {
+              b.classList.toggle("active", b.getAttribute("data-palette") === "div_blue_red");
+            });
+          }
+        } else {
+          // If reverting to normal mode while a Z-score palette is active, switch to 'blues'
+          if (state.paletteKey && state.paletteKey.startsWith("div_")) {
+            state.paletteKey = "blues";
+            document.querySelectorAll(".palette-btn").forEach(b => {
+              b.classList.toggle("active", b.getAttribute("data-palette") === "blues");
+            });
+          }
+        }
+
+        updateZScorePaletteUIState();
+        const selOptText = selTransMode.options[selTransMode.selectedIndex]?.text || "";
+        showToast(`数値を「${selOptText}」に切替・変換しました`, "info");
+        renderGeoJSONLayer();
+        renderMiniMapLayer();
+        updateStatsSummary();
       });
+      
+      updateZScorePaletteUIState();
     }
 
     // File Drag & Drop
@@ -2168,6 +2625,15 @@
       state.strokeColor = e.target.value;
       renderGeoJSONLayer();
     });
+
+    // Outer Prefecture Border Checkbox
+    const chkOuter = document.getElementById("chk-show-outer-border");
+    if (chkOuter) {
+      chkOuter.addEventListener("change", (e) => {
+        state.showOuterBorder = e.target.checked;
+        renderGeoJSONLayer();
+      });
+    }
 
     // Stroke Opacity Slider
     const strokeSlider = document.getElementById("stroke-opacity-slider");

@@ -739,6 +739,34 @@ input[type="number"] {
 .palette-preview.paired { background: linear-gradient(to right, #a6cee3, #1f78b4, #b2df8a, #33a02c, #fb9a99, #e31a1c, #fdbf6f, #ff7f00, #cab2d6, #6a3d9a, #ffff99, #b15928); }
 .palette-preview.set1 { background: linear-gradient(to right, #e41a1c, #377eb8, #4daf4a, #984ea3, #ff7f00, #ffff33, #a65628, #f781bf); }
 
+/* Z-Score / Diverging Color Palettes */
+.palette-preview.div_blue_red { background: linear-gradient(to right, #2166ac, #67a9cf, #f7f7f7, #ef8a62, #b2182b); }
+.palette-preview.div_red_blue { background: linear-gradient(to right, #b2182b, #ef8a62, #f7f7f7, #67a9cf, #2166ac); }
+.palette-preview.div_orange_purple { background: linear-gradient(to right, #b35806, #f1a340, #f7f7f7, #998ec3, #542788); }
+.palette-preview.div_brown_teal { background: linear-gradient(to right, #8c510a, #d8b365, #f5f5f5, #5ab4ac, #01665e); }
+.palette-preview.div_spectral { background: linear-gradient(to right, #d53e4f, #fdae61, #ffffbf, #abdda4, #2b83ba); }
+
+.zscore-palette-section.disabled-section {
+  opacity: 0.5;
+  filter: grayscale(60%);
+  pointer-events: none;
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+.zscore-palette-section.disabled-section button {
+  cursor: not-allowed !important;
+}
+
+.zscore-palette-section.active-section {
+  opacity: 1;
+  filter: none;
+  pointer-events: auto;
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.12);
+}
+
 /* Range Slider */
 .form-range {
   width: 100%;
