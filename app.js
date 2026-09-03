@@ -114,7 +114,9 @@
     labelGroup: null,
     dynamicCentroids: {},
     computedBreaks: [],
-    selectedMuni: null
+    selectedMuni: null,
+    miniMap: null,
+    miniMapLayer: null
   };
 
   // --- 5. Variable Store Management & Multi-Variable Modal ---
@@ -359,31 +361,110 @@
   }
 
   // --- 6. Name Normalizer & Fuzzy Matcher ---
-  function normalizeName(inputName) {
-    if (!inputName) return "";
-    let s = String(inputName).trim()
+  const ALIAS_TO_STANDARD = {
+    // Hiragana / Katakana
+    "あおもり": "青森市", "アオモリ": "青森市",
+    "ひろさき": "弘前市", "ヒロサキ": "弘前市",
+    "はちのへ": "八戸市", "ハチノヘ": "八戸市",
+    "くろいし": "黒石市", "クロイシ": "黒石市",
+    "ごしょがわら": "五所川原市", "ゴショガワラ": "五所川原市",
+    "とわだ": "十和田市", "トワダ": "十和田市",
+    "みさわ": "三沢市", "ミサワ": "三沢市",
+    "むつ": "むつ市", "ムツ": "むつ市",
+    "つがる": "つがる市", "ツガル": "つがる市",
+    "ひらかわ": "平川市", "ヒラカワ": "平川市",
+    "ひらない": "平内町", "ヒラナイ": "平内町",
+    "いまべつ": "今別町", "イマベツ": "今別町",
+    "よもぎた": "蓬田村", "ヨモギタ": "蓬田村",
+    "そとがはま": "外ヶ浜町", "ソトガハマ": "外ヶ浜町",
+    "あじがさわ": "鰺ヶ沢町", "アジガサワ": "鰺ヶ沢町",
+    "ふかうら": "深浦町", "フカウラ": "深浦町",
+    "にしめや": "西目屋村", "ニシメヤ": "西目屋村",
+    "ふじさき": "藤崎町", "フジサキ": "藤崎町",
+    "おおわに": "大鰐町", "オオワニ": "大鰐町",
+    "いなかだて": "田舎館村", "イナカダテ": "田舎館村",
+    "いたやなぎ": "板柳町", "イタヤナギ": "板柳町",
+    "つるた": "鶴田町", "ツルタ": "鶴田町",
+    "なかどまり": "中泊町", "ナカドマリ": "中泊町",
+    "のへじ": "野辺地町", "ノヘジ": "野辺地町",
+    "しちのへ": "七戸町", "シチノヘ": "七戸町",
+    "ろくのへ": "六戸町", "ロクノヘ": "六戸町",
+    "よこはま": "横浜町", "ヨコハマ": "横浜町",
+    "とうほく": "東北町", "トウホク": "東北町",
+    "ろっかしょ": "六ヶ所村", "ロッカショ": "六ヶ所村",
+    "おいらせ": "おいらせ町", "オイラセ": "おいらせ町",
+    "おおま": "大間町", "オオマ": "大間町", "オーマ": "大間町",
+    "ひがしどおり": "東通村", "ヒガシドオリ": "東通村",
+    "かざまうら": "風間浦村", "カザマウラ": "風間浦村",
+    "さい": "佐井村", "サイ": "佐井村",
+    "さんもへ": "三戸町", "サンモヘ": "三戸町",
+    "ごのへ": "五戸町", "ゴノヘ": "五戸町",
+    "たっこ": "田子町", "タッコ": "田子町",
+    "なんぶ": "南部町", "ナンブ": "南部町",
+    "はしかみ": "階上町", "ハシカミ": "階上町",
+    "しんごう": "新郷村", "シンゴウ": "新郷村",
+
+    // Former Municipalities (Legacy / Merger Support)
+    "浪岡町": "青森市", "浪岡": "青森市",
+    "岩木町": "弘前市", "岩木": "弘前市", "相馬村": "弘前市", "相馬": "弘前市",
+    "南郷村": "八戸市", "南郷": "八戸市",
+    "金木町": "五所川原市", "金木": "五所川原市", "市浦村": "五所川原市", "市浦": "五所川原市",
+    "十和田湖町": "十和田市", "十和田湖": "十和田市",
+    "川内町": "むつ市", "脇野沢村": "むつ市", "大畑町": "むつ市",
+    "木造町": "つがる市", "森田村": "つがる市", "柏村": "つがる市", "稲垣村": "つがる市", "車力村": "つがる市",
+    "尾上町": "平川市", "平賀町": "平川市", "碇ヶ関村": "平川市",
+    "蟹田町": "外ヶ浜町", "平舘村": "外ヶ浜町", "三厩村": "外ヶ浜町",
+    "岩崎村": "深浦町",
+    "常盤村": "藤崎町",
+    "中里町": "中泊町", "小泊村": "中泊町",
+    "天間林村": "七戸町",
+    "上北町": "東北町",
+    "百石町": "おいらせ町", "下田町": "おいらせ町",
+    "名川町": "南部町", "福地村": "南部町",
+    "倉石村": "五戸町"
+  };
+
+  function normalizeNameInfo(inputName) {
+    if (!inputName) return { matched: null, type: "empty", original: "" };
+    let orig = String(inputName).trim();
+    let s = orig.normalize('NFKC')
       .replace(/^青森県/, "")
-      .replace(/\s+/g, "");
+      .replace(/[\s\u3000,\.\-"']/g, "");
     
-    // Check by municipality code (e.g., "02201" or "2201")
+    if (!s) return { matched: null, type: "empty", original: orig };
+
+    // 1. Municipality Code Match
     for (let m of AOMORI_MUNICIPALITIES) {
       if (m.code === s || m.code === "0" + s || m.code.slice(1) === s) {
-        return m.name;
+        return { matched: m.name, type: (orig === m.name ? "exact" : "code"), original: orig };
       }
     }
 
-    // Direct match check
+    // 2. Direct Match
     for (let m of AOMORI_MUNICIPALITIES) {
-      if (m.name === s) return m.name;
+      if (m.name === s) {
+        return { matched: m.name, type: (orig === m.name ? "exact" : "normalized"), original: orig };
+      }
     }
 
-    // Match without '市', '町', '村' suffix (only exact match)
+    // 3. Match without Suffix ('市', '町', '村')
     for (let m of AOMORI_MUNICIPALITIES) {
       let base = m.name.replace(/[市町村]$/, "");
-      if (s === base || s === base + "市" || s === base + "町" || s === base + "村") return m.name;
+      if (s === base || s === base + "市" || s === base + "町" || s === base + "村") {
+        return { matched: m.name, type: (orig === m.name ? "exact" : "corrected"), original: orig };
+      }
     }
 
-    return null;
+    // 4. Hiragana / Katakana / Legacy Merger Alias Match
+    if (ALIAS_TO_STANDARD[s]) {
+      return { matched: ALIAS_TO_STANDARD[s], type: "alias", original: orig };
+    }
+
+    return { matched: null, type: "unmatched", original: orig };
+  }
+
+  function normalizeName(inputName) {
+    return normalizeNameInfo(inputName).matched;
   }
 
   // --- 6. Jenks Natural Breaks Algorithm (Fisher-Jenks in JS) ---
@@ -458,6 +539,7 @@
   // --- 7. Initialization ---
   document.addEventListener("DOMContentLoaded", () => {
     initLeafletMap();
+    initMiniMap();
     loadGeoJSON();
     bindEvents();
     initEmptyState();
@@ -504,6 +586,89 @@
 
     L.control.zoom({ position: 'topleft' }).addTo(state.leafletMap);
     updateMapBackgroundTile();
+  }
+
+  function initMiniMap() {
+    if (state.miniMap) return;
+    const miniEl = document.getElementById("step1-mini-map");
+    if (!miniEl) return;
+
+    state.miniMap = L.map("step1-mini-map", {
+      zoomControl: false,
+      attributionControl: false,
+      center: [40.92, 140.75],
+      zoom: 8.2,
+      zoomSnap: 0.1,
+      dragging: true,
+      scrollWheelZoom: false,
+      doubleClickZoom: false
+    });
+
+    renderMiniMapLayer();
+  }
+
+  function renderMiniMapLayer() {
+    if (!state.miniMap || !state.geojsonData) return;
+
+    if (state.miniMapLayer) {
+      state.miniMap.removeLayer(state.miniMapLayer);
+    }
+
+    let values = getEffectiveValues();
+    let palette = PALETTES[state.paletteKey] || PALETTES.blues;
+
+    state.miniMapLayer = L.geoJSON(state.geojsonData, {
+      style: (feature) => {
+        let rawName = feature.properties.name || feature.properties.N03_004;
+        let matchedName = normalizeName(rawName) || rawName;
+        let val = values[matchedName];
+        let color = getColorForValue(val);
+
+        return {
+          fillColor: color,
+          fillOpacity: 0.85,
+          color: "#475569",
+          weight: 0.8,
+          opacity: 0.8
+        };
+      },
+      onEachFeature: (feature, layer) => {
+        let rawName = feature.properties.name || feature.properties.N03_004;
+        let matchedName = normalizeName(rawName) || rawName;
+        let val = values[matchedName];
+        let hasVal = (val !== undefined && val !== null && !isNaN(val));
+        let displayVal = hasVal ? val.toLocaleString() : "データなし";
+
+        layer.bindTooltip(`
+          <div style="font-weight:700; font-size:0.85rem;">${matchedName}</div>
+          <div style="color:#60a5fa; font-size:0.78rem;">${displayVal}</div>
+        `, { sticky: true });
+
+        layer.on("click", () => {
+          const tr = document.querySelector(`.data-table tbody tr[data-name="${matchedName}"]`);
+          if (tr) {
+            tr.scrollIntoView({ behavior: "smooth", block: "center" });
+            const input = tr.querySelector(".cell-val-input");
+            if (input) {
+              input.focus();
+              input.style.transition = "background 0.3s";
+              input.style.backgroundColor = "#fef08a";
+              setTimeout(() => {
+                input.style.backgroundColor = "";
+              }, 1200);
+            }
+          }
+        });
+      }
+    }).addTo(state.miniMap);
+
+    const legendBar = document.getElementById("mini-map-legend-bar");
+    const varLabel = document.getElementById("mini-map-variable-label");
+    if (legendBar && varLabel) {
+      const curVar = state.variables[state.activeVariableKey];
+      varLabel.textContent = curVar ? `(${curVar.name})` : "(データ未入力)";
+      legendBar.innerHTML = palette.map(c => `<span style="background:${c};"></span>`).join("");
+    }
   }
 
   function updateMapBackgroundTile() {
@@ -851,6 +1016,7 @@
     renderLabelsLayer();
     renderLegend();
     updateStatsSummary();
+    renderMiniMapLayer();
   }
 
   // Permanent Static Label Marker Layer with Dynamic Overlap Resolution
@@ -1240,32 +1406,148 @@
     }
   }
 
-  // --- 16. CSV Parsing & Multi-Variable Importing ---
+  // --- 16. CSV / Excel Parsing & Multi-Variable Importing ---
+  function parseFileInput(file) {
+    if (!file) return;
+    const name = file.name.toLowerCase();
+    if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+      parseExcelFile(file);
+    } else {
+      parseCSVFile(file);
+    }
+  }
+
+  function parseExcelFile(file) {
+    if (typeof XLSX === "undefined") {
+      showToast("Excelライブラリ(SheetJS)の読み込みに失敗しました", "error");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+          showToast("Excelファイル内にワークシートが見つかりませんでした", "error");
+          return;
+        }
+
+        if (workbook.SheetNames.length === 1) {
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          const csvText = XLSX.utils.sheet_to_csv(firstSheet);
+          parseRawText(csvText, file.name + " (" + workbook.SheetNames[0] + ")");
+        } else {
+          openExcelSheetModal(workbook, file.name);
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("Excelファイルの解析中にエラーが発生しました: " + err.message, "error");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function openExcelSheetModal(workbook, fileName) {
+    const modal = document.getElementById("excel-sheet-modal");
+    const container = document.getElementById("excel-sheet-list");
+    if (!modal || !container) return;
+
+    container.innerHTML = "";
+    workbook.SheetNames.forEach((sheetName, index) => {
+      const card = document.createElement("label");
+      card.className = "var-radio-card" + (index === 0 ? " active" : "");
+      card.innerHTML = `
+        <input type="radio" name="excelSheet" value="${sheetName}" ${index === 0 ? "checked" : ""}>
+        <div class="var-card-content">
+          <div class="var-card-title"><i class="fa-solid fa-table text-green me-1"></i> ${sheetName}</div>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+
+    modal.classList.remove("hidden");
+
+    const btnConfirm = document.getElementById("btn-confirm-sheet-modal");
+    const btnCancel = document.getElementById("btn-cancel-sheet-modal");
+    const btnClose = document.getElementById("btn-close-sheet-modal");
+
+    const closeModal = () => {
+      modal.classList.add("hidden");
+      btnConfirm.removeEventListener("click", onConfirm);
+    };
+
+    const onConfirm = () => {
+      const selectedRadio = container.querySelector('input[name="excelSheet"]:checked');
+      if (selectedRadio) {
+        const chosenSheetName = selectedRadio.value;
+        const sheet = workbook.Sheets[chosenSheetName];
+        const csvText = XLSX.utils.sheet_to_csv(sheet);
+        parseRawText(csvText, fileName + " (" + chosenSheetName + ")");
+      }
+      closeModal();
+    };
+
+    btnConfirm.addEventListener("click", onConfirm);
+    btnCancel.onclick = closeModal;
+    if (btnClose) btnClose.onclick = closeModal;
+  }
+
   function parseCSVFile(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
-      parseRawText(e.target.result);
+      parseRawText(e.target.result, file.name);
     };
     reader.readAsText(file, "utf-8");
   }
 
-  function parseRawText(rawText) {
+  function renderNormalizationReport(autoCorrected, unmatched, totalRows) {
+    const banner = document.getElementById("normalization-report-banner");
+    const body = document.getElementById("norm-banner-body");
+    if (!banner || !body) return;
+
+    if (autoCorrected.length === 0 && unmatched.length === 0) {
+      banner.classList.add("hidden");
+      return;
+    }
+
+    let html = `<div class="d-flex flex-wrap gap-2 mb-1">
+      <span class="badge badge-primary">取り込み: ${totalRows}行</span>
+      ${autoCorrected.length > 0 ? `<span class="badge badge-success">自動補正: ${autoCorrected.length}件</span>` : ''}
+      ${unmatched.length > 0 ? `<span class="badge badge-warning">未一致: ${unmatched.length}件</span>` : ''}
+    </div>`;
+
+    if (autoCorrected.length > 0) {
+      let items = autoCorrected.map(item => `<b>「${item.original}」</b>→ <strong class="text-blue">${item.corrected}</strong>`).join("、");
+      html += `<div class="mt-1" style="color:#15803d;"><i class="fa-solid fa-wand-magic-sparkles me-1"></i> 表記揺れを自動正順化しました: ${items}</div>`;
+    }
+
+    if (unmatched.length > 0) {
+      let items = unmatched.map(item => `<b>「${item}」</b>`).join("、");
+      html += `<div class="mt-1 text-red"><i class="fa-solid fa-triangle-exclamation me-1"></i> 青森県の40市町村と一致しなかった名称: ${items}</div>`;
+    }
+
+    body.innerHTML = html;
+    banner.classList.remove("hidden");
+  }
+
+  function parseRawText(rawText, sourceName) {
     if (!rawText || !rawText.trim()) return;
     const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     if (lines.length === 0) return;
 
-    // Check if first line is a CSV header with multiple columns
+    let autoCorrected = [];
+    let unmatched = [];
+    let totalParsedRows = 0;
+
     let firstLine = lines[0];
     let sep = firstLine.includes("\t") ? "\t" : ",";
     let headerParts = firstLine.split(sep).map(s => s.trim().replace(/^["']|["']$/g, ""));
 
-    // Check if header contains municipality column
     let nameColIdx = headerParts.findIndex(h => /市町村|自治体|名称|市区町村|name/i.test(h));
     if (nameColIdx === -1) {
       nameColIdx = headerParts.length > 1 && /コード|code|id/i.test(headerParts[0]) ? 1 : 0;
     }
 
-    // Determine value columns (excluding Code, Type, etc.)
     let valCols = [];
     headerParts.forEach((colName, idx) => {
       if (idx !== nameColIdx && !/コード|code|id|区分|type/i.test(colName)) {
@@ -1274,7 +1556,6 @@
     });
 
     if (valCols.length > 1) {
-      // Multi-variable CSV detected!
       let addedKeys = [];
       valCols.forEach(col => {
         let varKey = "custom_" + col.name.replace(/[^a-zA-Z0-9_\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/g, "_");
@@ -1282,10 +1563,20 @@
         for (let i = 1; i < lines.length; i++) {
           let parts = lines[i].split(sep).map(s => s.trim().replace(/[,\s"']/g, ""));
           let nameCand = parts[nameColIdx];
-          let matched = normalizeName(nameCand);
-          if (matched && parts[col.idx] !== undefined) {
+          let normInfo = normalizeNameInfo(nameCand);
+          if (normInfo.matched && parts[col.idx] !== undefined) {
             let num = parseFloat(parts[col.idx]);
-            if (!isNaN(num)) varData[matched] = num;
+            if (!isNaN(num)) {
+              varData[normInfo.matched] = num;
+              totalParsedRows++;
+              if (normInfo.type === "corrected" || normInfo.type === "alias") {
+                if (!autoCorrected.some(a => a.original === nameCand)) {
+                  autoCorrected.push({ original: nameCand, corrected: normInfo.matched });
+                }
+              }
+            }
+          } else if (normInfo.type === "unmatched" && nameCand) {
+            if (!unmatched.includes(nameCand)) unmatched.push(nameCand);
           }
         }
         if (Object.keys(varData).length > 0) {
@@ -1295,8 +1586,8 @@
             label: `📁 ${col.name}`,
             unit: "",
             title: `青森県 市町村別 ${col.name}`,
-            subtitle: "CSV取り込みデータに基づく可視化",
-            remarks: "※ 出典：インポートされたCSVデータ",
+            subtitle: "インポートデータに基づく可視化",
+            remarks: sourceName ? `※ 出典：${sourceName}` : "※ 出典：インポートデータ",
             palette: "blues",
             data: varData
           };
@@ -1306,13 +1597,13 @@
 
       if (addedKeys.length > 0) {
         populateVariableDropdowns();
-        openVariableModal(addedKeys[0]);
-        showToast(`${addedKeys.length} 項目の変数を検出しました。作図する項目を選択してください。`, "info");
+        switchActiveVariable(addedKeys[0], true);
+        renderNormalizationReport(autoCorrected, unmatched, totalParsedRows);
+        showToast(`${addedKeys.length} 項目の変数を検出・設定しました`, "info");
         return;
       }
     }
 
-    // Single variable import (standard two-column list or line-by-line)
     const newVals = {};
     let count = 0;
     lines.forEach(line => {
@@ -1320,19 +1611,27 @@
       if (parts.length >= 2) {
         let nameCandidate = parts[0].trim();
         let valCandidate = parts[1].trim().replace(/[,\s"']/g, "");
-        let matched = normalizeName(nameCandidate);
+        let normInfo = normalizeNameInfo(nameCandidate);
         let num = parseFloat(valCandidate);
 
-        if (!matched && isNaN(num) && parts.length >= 2) {
+        if (!normInfo.matched && isNaN(num) && parts.length >= 2) {
           let altName = parts[1].trim();
           let altVal = parts[0].trim().replace(/[,\s"']/g, "");
-          matched = normalizeName(altName);
+          normInfo = normalizeNameInfo(altName);
           num = parseFloat(altVal);
+          if (normInfo.matched) nameCandidate = altName;
         }
 
-        if (matched && !isNaN(num)) {
-          newVals[matched] = num;
+        if (normInfo.matched && !isNaN(num)) {
+          newVals[normInfo.matched] = num;
           count++;
+          if (normInfo.type === "corrected" || normInfo.type === "alias") {
+            if (!autoCorrected.some(a => a.original === nameCandidate)) {
+              autoCorrected.push({ original: nameCandidate, corrected: normInfo.matched });
+            }
+          }
+        } else if (normInfo.type === "unmatched" && nameCandidate) {
+          if (!unmatched.includes(nameCandidate)) unmatched.push(nameCandidate);
         }
       }
     });
@@ -1347,12 +1646,13 @@
         unit: "",
         title: "青森県 市町村別統計マップ",
         subtitle: "取り込みデータに基づく可視化",
-        remarks: "※ ユーザー入力データ",
+        remarks: sourceName ? `※ 出典：${sourceName}` : "※ 出典：インポートデータ",
         palette: "blues",
         data: newVals
       };
       populateVariableDropdowns();
       switchActiveVariable(varKey, false);
+      renderNormalizationReport(autoCorrected, unmatched, count);
       showToast(`${count} 自治体の数値を取り込みました`, "success");
     } else {
       showToast("市町村名と数値の解析に失敗しました。フォーマットをご確認ください。", "error");
@@ -1585,6 +1885,15 @@
 
   // --- 19. Event Bindings ---
   function bindEvents() {
+    // Normalization Banner close button
+    const btnCloseBanner = document.getElementById("btn-close-norm-banner");
+    if (btnCloseBanner) {
+      btnCloseBanner.onclick = () => {
+        const banner = document.getElementById("normalization-report-banner");
+        if (banner) banner.classList.add("hidden");
+      };
+    }
+
     // Step navigation
     document.getElementById("btn-next-step").addEventListener("click", () => {
       document.getElementById("step1-data").style.display = "none";
@@ -1755,12 +2064,12 @@
       e.preventDefault();
       dropZone.classList.remove("dragover");
       if (e.dataTransfer.files.length > 0) {
-        parseCSVFile(e.dataTransfer.files[0]);
+        parseFileInput(e.dataTransfer.files[0]);
       }
     });
     fileInput.addEventListener("change", (e) => {
       if (e.target.files.length > 0) {
-        parseCSVFile(e.target.files[0]);
+        parseFileInput(e.target.files[0]);
       }
     });
 

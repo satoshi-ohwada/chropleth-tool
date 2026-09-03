@@ -1356,3 +1356,88 @@ input[type="number"] {
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
+/* ==========================================================================
+   Step 1 Layout Grid & Mini Map Preview Styles
+   ========================================================================== */
+
+.step1-layout-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (min-width: 992px) {
+  .step1-layout-grid {
+    grid-template-columns: 1fr 380px;
+  }
+}
+
+.sticky-card {
+  position: sticky;
+  top: 20px;
+  z-index: 10;
+}
+
+.mini-map-canvas {
+  height: 380px;
+  width: 100%;
+  background: #f8fafc;
+}
+
+.mini-legend-bar {
+  display: flex;
+  height: 12px;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid rgba(0,0,0,0.1);
+  background: #e2e8f0;
+}
+
+.mini-legend-bar span {
+  flex: 1;
+  height: 100%;
+}
+
+/* Alert Banners & Report Cards */
+.alert-banner {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  color: #1e3a8a;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.06);
+}
+
+.alert-banner.hidden {
+  display: none !important;
+}
+
+.alert-banner.alert-warning {
+  background: #fffbe6;
+  border-color: #ffe58f;
+  color: #873800;
+}
+
+.alert-banner.alert-success {
+  background: #f6ffed;
+  border-color: #b7eb8f;
+  color: #135200;
+}
+
+.btn-close-small {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.btn-close-small:hover {
+  color: #0f172a;
+  background: rgba(0,0,0,0.05);
+}
+

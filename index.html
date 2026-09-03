@@ -60,154 +60,204 @@
 
     <!-- Step 1: Data Input -->
     <section id="step1-data" class="step-container active">
-      <div class="step-content" style="max-width: 960px; margin: 0 auto; padding: 24px 20px 60px;">
+      <div class="step-content" style="max-width: 1280px; margin: 0 auto; padding: 24px 20px 60px;">
         
         <div class="step-intro text-center mb-3">
           <h2><i class="fa-solid fa-1"></i> データ読み込み・入力</h2>
-          <p class="text-muted">CSVファイルの読み込み、テキスト貼り付け、または表への直接入力でデータを設定します。</p>
+          <p class="text-muted">CSV / Excelファイル（.xlsx）の読み込み、テキスト貼り付け、または表への直接入力でデータを設定します。</p>
         </div>
 
-        <!-- CSV Upload & Batch Text Paste -->
-        <div class="card mb-4">
-          <div class="card-header flex-between">
-            <h3><i class="fa-solid fa-file-import"></i> CSVファイル / テキスト一括読み込み</h3>
-            <span class="text-muted" style="font-size:0.78rem;">※複数変数のCSVにも自動対応</span>
-          </div>
-          <div class="card-body">
-            <div id="drop-zone" class="drop-zone">
-              <i class="fa-solid fa-cloud-arrow-up drop-icon"></i>
-              <p>CSV / TSV ファイルをここにドラッグ＆ドロップ<br>または <span>ファイルを選択</span></p>
-              <input type="file" id="file-input" accept=".csv,.tsv,.txt" hidden>
-            </div>
+        <!-- Step 1 Layout Grid (Main Input Area + Sticky Real-time Mini Map Preview) -->
+        <div class="step1-layout-grid">
+          
+          <!-- Main Left Input Column -->
+          <div class="step1-main-col">
 
-            <div class="form-group mt-3">
-              <label for="raw-paste-input">テキスト一括貼り付け（ExcelやWeb表からのコピー＆ペーストに対応）</label>
-              <textarea id="raw-paste-input" class="form-control text-mono" rows="2" placeholder="自治体名, 人口, 面積...&#10;青森市, 264543, 824.61&#10;弘前市, 164594, 524.20&#10;..."></textarea>
-              <button id="btn-apply-paste" class="btn btn-sm btn-secondary mt-2 w-100">
-                <i class="fa-solid fa-check"></i> 貼り付けたデータを取り込む
-              </button>
-            </div>
-
-            <!-- Subtle Testing Preset Button -->
-            <div class="text-center mt-3 pt-2 border-top">
-              <button id="btn-load-preset-subtle" class="btn btn-sm btn-outline text-muted border-dashed" title="「統計でみる市区町村のすがた 2026」のサンプルデータを読み込みます">
-                <i class="fa-solid fa-flask"></i> サンプルデータ（統計でみる市区町村のすがた 2026）を読み込む
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Variable Selection Card in Step 1 (Visible after loading multi-variable data) -->
-        <div id="variable-select-card" class="card mb-4 variable-select-card hidden" style="background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border: 2px solid #93c5fd; box-shadow: 0 4px 15px rgba(37,99,235,0.08);">
-          <div class="card-body p-3 flex-between gap-3 flex-wrap">
-            <div class="d-flex align-items-center gap-3 flex-1" style="min-width: 280px;">
-              <div style="width: 46px; height: 46px; background: #2563eb; color: white; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; flex-shrink:0;">
-                <i class="fa-solid fa-layer-group"></i>
+            <!-- Normalization & Match Report Alert Banner (Hidden by default) -->
+            <div id="normalization-report-banner" class="alert-banner hidden mb-4">
+              <div class="alert-header d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-2">
+                  <i id="norm-banner-icon" class="fa-solid fa-wand-magic-sparkles text-blue" style="font-size: 1.2rem;"></i>
+                  <strong id="norm-banner-title" style="font-size: 0.95rem;">市町村名の取り込み結果</strong>
+                </div>
+                <button id="btn-close-norm-banner" class="btn-close-small">&times;</button>
               </div>
-              <div style="flex: 1;">
-                <label for="select-variable-step1" class="form-label mb-1 fw-bold text-dark" style="font-size: 0.95rem;">
-                  📊 作図する項目（変数）を選択
-                </label>
-                <select id="select-variable-step1" class="form-control form-control-lg fw-bold" style="border-color: #3b82f6; font-size: 1.05rem; background:#ffffff;">
-                  <!-- Populated dynamically -->
-                </select>
+              <div id="norm-banner-body" class="alert-body mt-2" style="font-size: 0.85rem; line-height: 1.6;">
+                <!-- Dynamically populated report content -->
               </div>
             </div>
-            <div class="d-flex gap-2 align-items-center flex-wrap">
-              <span id="variable-meta-badge" class="badge badge-primary px-3 py-2" style="font-size: 0.85rem; background: #2563eb;">
-                データ読込済
-              </span>
-              <button id="btn-open-var-modal-step1" class="btn btn-sm btn-outline" style="background:#ffffff; font-weight:600;">
-                <i class="fa-solid fa-list-check"></i> 項目一覧から選ぶ
-              </button>
-            </div>
-          </div>
-        </div>
 
-        <!-- Quick Summary Stats Bar -->
-        <div class="stats-summary-bar mb-4">
-          <div class="stat-card">
-            <span class="stat-label">入力状況</span>
-            <span id="stat-count" class="stat-value text-blue">0 / 40</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">合計値</span>
-            <span id="stat-sum" class="stat-value">-</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">平均値</span>
-            <span id="stat-mean" class="stat-value">-</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">中央値</span>
-            <span id="stat-median" class="stat-value">-</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">最大値</span>
-            <span id="stat-max" class="stat-value text-red" title="">-</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">最小値</span>
-            <span id="stat-min" class="stat-value text-green" title="">-</span>
-          </div>
-        </div>
-
-        <!-- Proceed to Step 2 Button -->
-        <div class="d-flex justify-content-end mb-3">
-          <button id="btn-next-step" class="btn btn-primary btn-lg px-4 py-3" style="font-size: 1.05rem; box-shadow: 0 4px 14px rgba(37,99,235,0.35);">
-            次へ：マップをデザイン・出力 <i class="fa-solid fa-arrow-right ms-2"></i>
-          </button>
-        </div>
-
-        <!-- 40 Municipalities Direct Numeric Input Table -->
-        <div class="card mb-4">
-          <div class="card-header flex-between">
-            <div class="d-flex align-items-center gap-2">
-              <h3><i class="fa-solid fa-pen-to-square"></i> 市町村別 数値の直接入力 (全40自治体)</h3>
-              <span id="match-badge" class="badge badge-warning">0 / 40 入力済</span>
-            </div>
-            <div class="table-actions-top d-flex gap-2">
-              <button id="btn-dl-template" class="btn btn-sm btn-outline" title="全市町村名入りのCSVテンプレートをダウンロード">
-                <i class="fa-solid fa-file-arrow-down"></i> CSVテンプレート
-              </button>
-              <button id="btn-export-csv" class="btn btn-sm btn-outline" title="現在の編集データをCSV形式で保存">
-                <i class="fa-solid fa-file-csv"></i> CSV保存
-              </button>
-            </div>
-          </div>
-          <div class="card-body p-0">
-            <div class="table-search-bar p-2 flex-between gap-2">
-              <div class="search-input-wrapper flex-1" style="flex:1;">
-                <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                <input type="text" id="table-search" class="form-control form-control-sm" placeholder="市町村名で絞り込み（例: 青森、八戸、南部）...">
+            <!-- CSV / Excel Upload & Batch Text Paste -->
+            <div class="card mb-4">
+              <div class="card-header flex-between">
+                <h3><i class="fa-solid fa-file-import"></i> CSV / Excelファイル / テキスト一括読み込み</h3>
+                <span class="text-muted" style="font-size:0.78rem;">※.xlsx / .csv / 多変数自動対応</span>
               </div>
-              <button id="btn-clear-values" class="btn btn-sm btn-outline text-red" title="すべての数値をクリアして空にする">
-                <i class="fa-solid fa-trash-can"></i> クリア
+              <div class="card-body">
+                <div id="drop-zone" class="drop-zone">
+                  <i class="fa-solid fa-cloud-arrow-up drop-icon"></i>
+                  <p>CSV / TSV / <strong>Excel (.xlsx)</strong> ファイルをここにドラッグ＆ドロップ<br>または <span>ファイルを選択</span></p>
+                  <input type="file" id="file-input" accept=".csv,.tsv,.txt,.xlsx,.xls" hidden>
+                </div>
+
+                <div class="form-group mt-3">
+                  <label for="raw-paste-input">テキスト一括貼り付け（ExcelやWeb表からのコピー＆ペーストに対応）</label>
+                  <textarea id="raw-paste-input" class="form-control text-mono" rows="2" placeholder="自治体名, 人口, 面積...&#10;青森, 264543, 824.61&#10;ひろさき, 164594, 524.20&#10;..."></textarea>
+                  <button id="btn-apply-paste" class="btn btn-sm btn-secondary mt-2 w-100">
+                    <i class="fa-solid fa-check"></i> 貼り付けたデータを取り込む
+                  </button>
+                </div>
+
+                <!-- Subtle Testing Preset Button -->
+                <div class="text-center mt-3 pt-2 border-top">
+                  <button id="btn-load-preset-subtle" class="btn btn-sm btn-outline text-muted border-dashed" title="「統計でみる市区町村のすがた 2026」のサンプルデータを読み込みます">
+                    <i class="fa-solid fa-flask"></i> サンプルデータ（統計でみる市区町村のすがた 2026）を読み込む
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Variable Selection Card in Step 1 (Visible after loading multi-variable data) -->
+            <div id="variable-select-card" class="card mb-4 variable-select-card hidden" style="background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border: 2px solid #93c5fd; box-shadow: 0 4px 15px rgba(37,99,235,0.08);">
+              <div class="card-body p-3 flex-between gap-3 flex-wrap">
+                <div class="d-flex align-items-center gap-3 flex-1" style="min-width: 280px;">
+                  <div style="width: 46px; height: 46px; background: #2563eb; color: white; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; flex-shrink:0;">
+                    <i class="fa-solid fa-layer-group"></i>
+                  </div>
+                  <div style="flex: 1;">
+                    <label for="select-variable-step1" class="form-label mb-1 fw-bold text-dark" style="font-size: 0.95rem;">
+                      📊 作図する項目（変数）を選択
+                    </label>
+                    <select id="select-variable-step1" class="form-control form-control-lg fw-bold" style="border-color: #3b82f6; font-size: 1.05rem; background:#ffffff;">
+                      <!-- Populated dynamically -->
+                    </select>
+                  </div>
+                </div>
+                <div class="d-flex gap-2 align-items-center flex-wrap">
+                  <span id="variable-meta-badge" class="badge badge-primary px-3 py-2" style="font-size: 0.85rem; background: #2563eb;">
+                    データ読込済
+                  </span>
+                  <button id="btn-open-var-modal-step1" class="btn btn-sm btn-outline" style="background:#ffffff; font-weight:600;">
+                    <i class="fa-solid fa-list-check"></i> 項目一覧から選ぶ
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Summary Stats Bar -->
+            <div class="stats-summary-bar mb-4">
+              <div class="stat-card">
+                <span class="stat-label">入力状況</span>
+                <span id="stat-count" class="stat-value text-blue">0 / 40</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">合計値</span>
+                <span id="stat-sum" class="stat-value">-</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">平均値</span>
+                <span id="stat-mean" class="stat-value">-</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">中央値</span>
+                <span id="stat-median" class="stat-value">-</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">最大値</span>
+                <span id="stat-max" class="stat-value text-red" title="">-</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">最小値</span>
+                <span id="stat-min" class="stat-value text-green" title="">-</span>
+              </div>
+            </div>
+
+            <!-- Proceed to Step 2 Button -->
+            <div class="d-flex justify-content-end mb-3">
+              <button id="btn-next-step" class="btn btn-primary btn-lg px-4 py-3" style="font-size: 1.05rem; box-shadow: 0 4px 14px rgba(37,99,235,0.35);">
+                次へ：マップをデザイン・出力 <i class="fa-solid fa-arrow-right ms-2"></i>
               </button>
             </div>
-            
-            <div class="table-container">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th style="width: 45px; text-align:center;">状態</th>
-                    <th style="width: 70px;">コード</th>
-                    <th>市町村名</th>
-                    <th style="width: 70px; text-align:center;">区分</th>
-                    <th id="th-val-col" style="width: 170px; text-align:right;">数値（入力欄）</th>
-                  </tr>
-                </thead>
-                <tbody id="data-table-body">
-                  <!-- Dynamically generated input rows -->
-                </tbody>
-              </table>
+
+            <!-- 40 Municipalities Direct Numeric Input Table -->
+            <div class="card mb-4">
+              <div class="card-header flex-between">
+                <div class="d-flex align-items-center gap-2">
+                  <h3><i class="fa-solid fa-pen-to-square"></i> 市町村別 数値の直接入力 (全40自治体)</h3>
+                  <span id="match-badge" class="badge badge-warning">0 / 40 入力済</span>
+                </div>
+                <div class="table-actions-top d-flex gap-2">
+                  <button id="btn-dl-template" class="btn btn-sm btn-outline" title="全市町村名入りのCSVテンプレートをダウンロード">
+                    <i class="fa-solid fa-file-arrow-down"></i> CSVテンプレート
+                  </button>
+                  <button id="btn-export-csv" class="btn btn-sm btn-outline" title="現在の編集データをCSV形式で保存">
+                    <i class="fa-solid fa-file-csv"></i> CSV保存
+                  </button>
+                </div>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-search-bar p-2 flex-between gap-2">
+                  <div class="search-input-wrapper flex-1" style="flex:1;">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="table-search" class="form-control form-control-sm" placeholder="市町村名で絞り込み（例: 青森、八戸、南部）...">
+                  </div>
+                  <button id="btn-clear-values" class="btn btn-sm btn-outline text-red" title="すべての数値をクリアして空にする">
+                    <i class="fa-solid fa-trash-can"></i> クリア
+                  </button>
+                </div>
+                
+                <div class="table-container">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 45px; text-align:center;">状態</th>
+                        <th style="width: 70px;">コード</th>
+                        <th>市町村名</th>
+                        <th style="width: 70px; text-align:center;">区分</th>
+                        <th id="th-val-col" style="width: 170px; text-align:right;">数値（入力欄）</th>
+                      </tr>
+                    </thead>
+                    <tbody id="data-table-body">
+                      <!-- Dynamically generated input rows -->
+                    </tbody>
+                  </table>
+                </div>
+                <div class="p-2 bg-light border-top text-muted flex-between" style="font-size:0.75rem;">
+                  <span>※ 表の数値を直接編集すると、リアルタイムに右側のミニマップと統計値へ反映されます。</span>
+                  <span id="filtered-count-label">全40自治体を表示中</span>
+                </div>
+              </div>
             </div>
-            <div class="p-2 bg-light border-top text-muted flex-between" style="font-size:0.75rem;">
-              <span>※ 表の数値を直接編集すると、リアルタイムに地図と統計値へ反映されます。</span>
-              <span id="filtered-count-label">全40自治体を表示中</span>
+
+          </div><!-- /.step1-main-col -->
+
+          <!-- Sticky Right Preview Column -->
+          <div class="step1-preview-col">
+            <div class="card mini-map-card sticky-card">
+              <div class="card-header flex-between p-3" style="background:#eff6ff; border-bottom: 1px solid #bfdbfe;">
+                <div class="d-flex align-items-center gap-2">
+                  <i class="fa-solid fa-map-location-dot text-blue" style="font-size: 1.15rem;"></i>
+                  <h3 class="m-0" style="font-size: 0.98rem; font-weight: 700; color: #1e40af;">リアルタイムプレビュー</h3>
+                </div>
+                <span id="mini-map-badge" class="badge badge-info" style="font-size:0.75rem;">リアルタイム連動</span>
+              </div>
+              <div class="card-body p-0">
+                <div id="step1-mini-map" class="mini-map-canvas"></div>
+                <div class="p-3 bg-light border-top" style="font-size: 0.78rem;">
+                  <div class="flex-between mb-2">
+                    <strong id="mini-map-title-label" class="text-dark" style="font-size:0.82rem;">色分けプレビュー</strong>
+                    <span id="mini-map-variable-label" class="text-muted" style="font-size:0.75rem;">(データ未入力)</span>
+                  </div>
+                  <div id="mini-map-legend-bar" class="mini-legend-bar mb-2"></div>
+                  <div class="text-muted" style="font-size: 0.73rem; line-height:1.4;">
+                    <i class="fa-solid fa-hand-pointer text-blue me-1"></i> 地図上の市町村をクリックすると、左側の入力表の該当行にスクロールします。
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </div><!-- /.step1-preview-col -->
+
+        </div><!-- /.step1-layout-grid -->
 
       </div>
     </section>
@@ -785,8 +835,28 @@
       </div>
       <div class="modal-footer flex-between">
         <span id="modal-var-count" class="text-muted" style="font-size:0.85rem;">全 0 項目</span>
-        <button id="btn-confirm-var-modal" class="btn btn-primary px-4 py-2" style="font-weight:700;">
-          <i class="fa-solid fa-check"></i> この項目で作図する
+  <!-- Excel Sheet Selection Modal (appears when multi-sheet Excel file is loaded) -->
+  <div id="excel-sheet-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-header">
+        <div class="d-flex align-items-center gap-2">
+          <i class="fa-solid fa-file-excel text-green" style="font-size:1.35rem;"></i>
+          <h3 class="m-0">Excel ワークシートの選択</h3>
+        </div>
+        <button id="btn-close-sheet-modal" class="modal-close-btn" title="閉じる">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted mb-3" style="font-size:0.9rem;">
+          読み込まれたExcelファイルに複数のワークシートが含まれています。取り込むシートを選択してください。
+        </p>
+        <div id="excel-sheet-list" class="variable-radio-grid">
+          <!-- Dynamically populated sheet radio buttons -->
+        </div>
+      </div>
+      <div class="modal-footer flex-between">
+        <button id="btn-cancel-sheet-modal" class="btn btn-secondary">キャンセル</button>
+        <button id="btn-confirm-sheet-modal" class="btn btn-primary px-4 py-2" style="font-weight:700;">
+          <i class="fa-solid fa-check"></i> このシートを取り込む
         </button>
       </div>
     </div>
@@ -797,6 +867,9 @@
 
   <!-- Leaflet JS -->
   <script src="vendor/js/leaflet.js"></script>
+
+  <!-- SheetJS Excel Library -->
+  <script src="vendor/js/xlsx.full.min.js"></script>
 
   <!-- Export libraries for 100% Firefox & Chrome PNG export compatibility -->
   <script src="vendor/js/html2canvas.min.js"></script>
