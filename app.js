@@ -169,20 +169,30 @@
     updateStatsSummary();
   }
 
-  // Load e-Stat sample dataset
-  function loadEstatSampleData() {
-    fetch("./data/sugata2026.csv")
+  // Load preset datasets (nenkan100 or sugata2026)
+  function loadPresetData(presetKey = "nenkan100") {
+    let filePath = "./data/sugata2026.csv";
+    let presetTitle = "「統計でみる市区町村のすがた 2026」";
+    let detailNote = "（主要33指標）";
+
+    if (presetKey === "nenkan100") {
+      filePath = "./data/nenkan_data100.csv";
+      presetTitle = "「R8青森県統計年鑑 市町村データ100」";
+      detailNote = "（全100項目）";
+    }
+
+    fetch(filePath)
       .then(res => {
-        if (!res.ok) throw new Error("Sample data load failed");
+        if (!res.ok) throw new Error("Preset data load failed");
         return res.text();
       })
       .then(text => {
-        parseRawText(text);
-        showToast("「統計でみる市区町村のすがた 2026」データを読み込みました。", "info");
+        parseRawText(text, presetTitle);
+        showToast(`${presetTitle} データを読み込みました。${detailNote}`, "info");
       })
       .catch(err => {
         console.error(err);
-        showToast("サンプルデータの読み込みに失敗しました", "error");
+        showToast("プリセットデータの読み込みに失敗しました", "error");
       });
   }
   
@@ -193,7 +203,7 @@
         let val = state.currentValues[key];
         let base = state.baselinePopulation[key];
         if (typeof val === 'number' && typeof base === 'number' && base > 0) {
-          baseVals[key] = (val / base) * (state.perCapitaMultiplier || 10000);
+          baseVals[key] = (val / base) * (state.perCapitaMultiplier || 100);
         } else {
           baseVals[key] = val;
         }
@@ -235,8 +245,8 @@
     if (state.transformMode === "zscore") return "Zスコア (平均=0, SD=1)";
     if (state.transformMode === "tscore") return "偏差値 (平均=50, SD=10)";
     if (state.transformMode === "per_capita") {
-      const mult = state.perCapitaMultiplier || 10000;
-      return mult === 1 ? "1人あたり" : mult === 1000 ? "1,000人あたり" : mult === 100000 ? "10万人あたり" : "1万人あたり";
+      const mult = state.perCapitaMultiplier || 100;
+      return mult === 1 ? "1人あたり" : mult === 100 ? "100人あたり(％)" : mult === 1000 ? "1,000人あたり" : `${mult.toLocaleString()}人あたり`;
     }
     return state.unit || "";
   }
@@ -1539,7 +1549,7 @@
 
     svg.innerHTML = svgHtml;
 
-    // 5. Update Badge & Advice Text
+    // 5. Update Badge & Comprehensive Visualization Advice
     const absSkew = Math.abs(skewness);
 
     if (badge) {
@@ -1558,23 +1568,82 @@
       }
     }
 
+    const activeVar = state.variables[state.activeVariableKey];
+    const varName = activeVar ? activeVar.name : "";
+    const varUnit = activeVar ? activeVar.unit : "";
+
+    // A. Transformation Mode Advice (数値変換アドバイス)
+    let transAdviceHeader = "";
+    let transAdviceDetail = "";
+
+    // Check if the variable is already normalized / per-capita / rate / index / per person
+    const isAlreadyNormalized = /1人|一人|１人|世帯あた|世帯当|率|割合|%|％|密度|指数|スコア|偏差値|100人|1000人|1,000人|1万人|10万人/i.test(varName + varUnit);
+    // Check if it's a raw cumulative count or total financial sum (未補正の総数・総額データ)
+    const isRawCountOrAmount = !isAlreadyNormalized && /人口|世帯数|就業者数|事業所数|農家数|面積|水稲|収穫量|出荷額|販売額|総生産|車両数|延長|病床数|医師数|施設数|件数|歳入|歳出|金額/i.test(varName);
+
+    if (isAlreadyNormalized) {
+      if (absSkew <= 0.45) {
+        transAdviceHeader = "① 数値変換：すでに単位補正済みの指標のため <b>「実測値」</b> が最適";
+        transAdviceDetail = `「1人あたり」や「割合」などの補正済み指標です。分布が均等（歪度 <b>${skewness.toFixed(2)}</b>）なため、<b>実測値（そのままの数値）</b>で直感的に可視化できます。偏差の評価には<b>Zスコア・偏差値</b>も有効です。`;
+      } else {
+        transAdviceHeader = "① 数値変換：すでに単位補正済みの指標のため <b>「実測値」</b> で作図してください";
+        transAdviceDetail = `すでに単位調整（1人あたり等）された指標です。自治体間の格差により値に偏り（歪度 <b>${skewness.toFixed(2)}</b>）がありますが、人口あたりの再変換は不要です。下記<b>「Jenks自然分類」</b>による階級区分で描画すると綺麗に色分けできます。`;
+      }
+    } else if (isRawCountOrAmount) {
+      if (absSkew <= 0.45) {
+        transAdviceHeader = "① 数値変換：<b>「100人あたり(％)」</b> や <b>「1,000人あたり」</b> への人口補正がおすすめ";
+        transAdviceDetail = `総数データのため人口規模が大きい市（青森市・八戸市等）が高くなりやすい傾向があります。<b>「100人あたり(%)」や「1,000人あたり」</b>に補正すると市町村間の真の差を比較できます。`;
+      } else {
+        transAdviceHeader = "① 数値変換：<b>「100人あたり(％) / 1,000人あたり」</b> への人口補正を強力に推奨";
+        transAdviceDetail = `総数データで上位自治体に数値が集中し強い偏り（歪度 <b>${skewness.toFixed(2)}</b>）があります。人口規模の違いを相殺するため<b>「1,000人あたり」や「100人あたり(%)」</b>に変換して分析してください。`;
+      }
+    } else {
+      if (absSkew <= 0.45) {
+        transAdviceHeader = "① 数値変換：<b>「実測値」</b> または <b>「Zスコア / 偏差値」</b> が最適";
+        transAdviceDetail = `分布がバランスよく左右対称（歪度 <b>${skewness.toFixed(2)}</b>）のため、<b>実測値</b>のまま作図するか、<b>Zスコア/偏差値</b>で標準化すると全自治体の位置づけが把握できます。`;
+      } else {
+        transAdviceHeader = "① 数値変換：<b>「実測値」</b> での可視化が適切";
+        transAdviceDetail = `分布に偏り（歪度 <b>${skewness.toFixed(2)}</b>）があります。Zスコアを使うと特定の階級に自治体が集中する可能性があるため、<b>実測値</b>のまま評価するのが適切です。`;
+      }
+    }
+
+    // B. Classification Method Advice (階級区分法のアドバイス)
+    let classAdviceHeader = "";
+    let classAdviceDetail = "";
+
+    if (absSkew > 0.8) {
+      classAdviceHeader = "② 階級区分：<b>「Jenks自然段階分類（自然分類法）」</b> を強く推奨";
+      classAdviceDetail = `データ内に大きな格差や急激な値の跳ね上がり（上位市の集中等）が存在します。データの「自然な谷間」で境界を切る<b>「Jenks（自然分類）」</b>を使うと、自然なクラスタリングで最も美しく塗り分けられます。`;
+    } else if (absSkew > 0.3) {
+      classAdviceHeader = "② 階級区分：<b>「Jenks（自然分類）」</b> または <b>「等間隔分類」</b> がおすすめ";
+      classAdviceDetail = `比較的滑らかな分布です。全体を均等な数値幅で分けたい場合は<b>「等間隔分類」</b>、データの自然な集まりを重視したい場合は<b>「Jenks（自然分類）」</b>が適しています。`;
+    } else {
+      classAdviceHeader = "② 階級区分：<b>「等間隔分類」</b> または <b>「Jenks（自然分類）」</b> が最適";
+      classAdviceDetail = `データが均等・綺麗な左右対称に分布しています。標準的な<b>「等間隔分類」</b>で境界を設定すると分かりやすい階級分けになります。`;
+    }
+
     if (adviceBox && adviceText) {
       if (absSkew <= 0.45) {
         adviceBox.style.background = "#eff6ff";
         adviceBox.style.borderColor = "#93c5fd";
-        adviceText.innerHTML = `<strong style="color:#1d4ed8;">【判定：Zスコア / 偏差値表示に最適】</strong><br>
-        データが平均値を中心として綺麗な左右対称の山型（歪度: <b>${skewness.toFixed(2)}</b>）です。平均からの離れ具合が全自治体で均等に評価できるため、<b>「Zスコア」または「偏差値」表示が大変適しています</b>。`;
       } else if (absSkew <= 0.95) {
         adviceBox.style.background = "#fefce8";
         adviceBox.style.borderColor = "#fef08a";
-        adviceText.innerHTML = `<strong style="color:#a16207;">【判定：Zスコア使用可能（やや偏りあり）】</strong><br>
-        データがやや${skewness > 0 ? '右側（高数値方向）' : '左側'}に偏っています（歪度: <b>${skewness.toFixed(2)}</b>）。Zスコアや偏差値表示も十分ご利用いただけますが、平均から離れた極端な自治体に階級が引っ張られる傾向があります。`;
       } else {
         adviceBox.style.background = "#fef2f2";
         adviceBox.style.borderColor = "#fca5a5";
-        adviceText.innerHTML = `<strong style="color:#dc2626;">【判定：注意・歪みが大きい分布】</strong><br>
-        一部の自治体（上位市など）の数値が突出しており、データが${skewness > 0 ? '右側（高数値方向）' : '左側'}に強く偏っています（歪度: <b>${skewness.toFixed(2)}</b>）。Zスコアを使うと多数の自治体が同じ階級に集中する可能性があるため、<b>「実測値」「人口あたり数値」</b>や<b>「Jenks自然段階分類」</b>での作図がおすすめです。`;
       }
+
+      adviceText.innerHTML = `
+        <div class="mb-2 pb-2 border-bottom" style="border-color: rgba(0,0,0,0.08) !important;">
+          <div class="fw-bold text-dark" style="font-size:0.84rem;">${transAdviceHeader}</div>
+          <div class="text-muted mt-1" style="font-size:0.78rem; line-height:1.4;">${transAdviceDetail}</div>
+        </div>
+        <div>
+          <div class="fw-bold text-dark" style="font-size:0.84rem;">${classAdviceHeader}</div>
+          <div class="text-muted mt-1" style="font-size:0.78rem; line-height:1.4;">${classAdviceDetail}</div>
+        </div>
+      `;
     }
   }
 
@@ -1933,6 +2002,9 @@
 
   function parseRawText(rawText, sourceName) {
     if (!rawText || !rawText.trim()) return;
+    if (rawText.charCodeAt(0) === 0xFEFF) {
+      rawText = rawText.slice(1);
+    }
     const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     if (lines.length === 0) return;
 
@@ -1943,7 +2015,7 @@
 
     let firstLine = lines[0];
     let sep = firstLine.includes("\t") ? "\t" : ",";
-    let headerParts = firstLine.split(sep).map(s => s.trim().replace(/^["']|["']$/g, ""));
+    let headerParts = firstLine.split(sep).map(s => s.trim().replace(/^[\uFEFF"']|["']$/g, ""));
 
     let nameColIdx = headerParts.findIndex(h => /市町村|自治体|名称|市区町村|name/i.test(h));
     if (nameColIdx === -1) {
@@ -2362,10 +2434,20 @@
       }
     });
 
-    // Subtle Verification Preset Button in CSV card
+    // Preset Datasets Loading Buttons
+    const btnPresetNenkan = document.getElementById("btn-load-preset-nenkan");
+    if (btnPresetNenkan) {
+      btnPresetNenkan.addEventListener("click", () => loadPresetData("nenkan100"));
+    }
+
+    const btnPresetSugata = document.getElementById("btn-load-preset-sugata");
+    if (btnPresetSugata) {
+      btnPresetSugata.addEventListener("click", () => loadPresetData("sugata2026"));
+    }
+
     const btnPresetSubtle = document.getElementById("btn-load-preset-subtle");
     if (btnPresetSubtle) {
-      btnPresetSubtle.addEventListener("click", loadEstatSampleData);
+      btnPresetSubtle.addEventListener("click", () => loadPresetData("sugata2026"));
     }
 
     // Step 1 Modal Open Button
@@ -2420,8 +2502,9 @@
       let baseUnit = v && v.unit ? `単位：${v.unit}` : "";
       
       if (state.isPerCapitaMode) {
-        let label = "1万人";
+        let label = "100人(%)";
         if (state.perCapitaMultiplier === 1) label = "1人";
+        else if (state.perCapitaMultiplier === 100) label = "100人(%)";
         else if (state.perCapitaMultiplier === 1000) label = "1,000人";
         else if (state.perCapitaMultiplier === 10000) label = "1万人";
         else if (state.perCapitaMultiplier === 100000) label = "10万人";
@@ -2472,7 +2555,7 @@
         if (val.startsWith("per_capita")) {
           state.transformMode = "per_capita";
           state.isPerCapitaMode = true;
-          state.perCapitaMultiplier = parseInt(val.replace("per_capita_", ""), 10) || 10000;
+          state.perCapitaMultiplier = parseInt(val.replace("per_capita_", ""), 10) || 100;
         } else {
           state.transformMode = val;
           state.isPerCapitaMode = false;
@@ -2510,6 +2593,14 @@
     // File Drag & Drop
     const dropZone = document.getElementById("drop-zone");
     const fileInput = document.getElementById("file-input");
+    const btnFileSelectTrigger = document.getElementById("btn-file-select-trigger");
+
+    if (btnFileSelectTrigger) {
+      btnFileSelectTrigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        fileInput.click();
+      });
+    }
 
     dropZone.addEventListener("click", () => fileInput.click());
     dropZone.addEventListener("dragover", (e) => {
