@@ -947,29 +947,45 @@ input[type="number"] {
 .map-overlay-header {
   position: absolute;
   top: 1.5cqw;
-  left: 5cqw; /* Avoid overlap with Leaflet zoom control */
+  left: 5.2cqw; /* Avoid overlap with Leaflet zoom control */
   z-index: 500;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(10px);
-  padding: 1cqw 1.5cqw;
-  border-radius: 0.8cqw;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 0.4cqw 1.3cqw rgba(0, 0, 0, 0.06);
-  max-width: 45cqw;
+  padding: 1.2cqw 1.8cqw;
+  border-radius: 0.9cqw;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 0.5cqw 1.8cqw rgba(0, 0, 0, 0.08);
+  max-width: 58cqw;
   pointer-events: none;
 }
 
 .map-overlay-header h2 {
-  font-size: 1.55cqw;
+  font-size: 1.95cqw;
   font-weight: 800;
   color: #0f172a;
-  line-height: 1.2;
+  line-height: 1.25;
+  margin-bottom: 0.3cqw;
+}
+
+.map-subtitle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.8cqw;
+  flex-wrap: wrap;
 }
 
 .map-overlay-header p {
-  font-size: 1.05cqw;
+  font-size: 1.2cqw;
   color: #475569;
-  margin-top: 0.3cqw;
+  margin: 0;
+}
+
+.map-mode-text {
+  font-size: 1.15cqw;
+  font-weight: 700;
+  color: #1e40af;
+  white-space: nowrap;
+  display: inline-block;
 }
 
 /* Map Footer Overlay */
@@ -999,39 +1015,39 @@ input[type="number"] {
   z-index: 500;
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(10px);
-  padding: 1cqw 1.3cqw;
-  border-radius: 0.8cqw;
+  padding: 1.2cqw 1.6cqw;
+  border-radius: 0.9cqw;
   border: 1px solid #cbd5e1;
-  box-shadow: 0 0.5cqw 1.6cqw rgba(0, 0, 0, 0.06);
-  min-width: 19cqw;
+  box-shadow: 0 0.6cqw 2cqw rgba(0, 0, 0, 0.08);
+  min-width: 22cqw;
 }
 
-.map-legend-box.position-bottomright { bottom: 1.5cqw; right: 1.5cqw; }
-.map-legend-box.position-bottomleft { bottom: 4cqw; left: 1.5cqw; }
-.map-legend-box.position-topright { top: 1.5cqw; right: 1.5cqw; }
-.map-legend-box.position-topleft { top: 7.5cqw; left: 5cqw; }
-.map-legend-box.position-rightmiddle { top: 50%; right: 1.5cqw; transform: translateY(-50%); }
-.map-legend-box.position-leftmiddle { top: 50%; left: 1.5cqw; transform: translateY(-50%); }
+.map-legend-box.position-bottomright { bottom: 1.8cqw; right: 1.8cqw; }
+.map-legend-box.position-bottomleft { bottom: 4.5cqw; left: 1.8cqw; }
+.map-legend-box.position-topright { top: 1.8cqw; right: 1.8cqw; }
+.map-legend-box.position-topleft { top: 7.5cqw; left: 5.5cqw; }
+.map-legend-box.position-rightmiddle { top: 50%; right: 1.8cqw; transform: translateY(-50%); }
+.map-legend-box.position-leftmiddle { top: 50%; left: 1.8cqw; transform: translateY(-50%); }
 
 .legend-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1cqw;
-  margin-bottom: 0.6cqw;
-  padding-bottom: 0.5cqw;
-  border-bottom: 1px solid #e2e8f0;
+  gap: 1.2cqw;
+  margin-bottom: 0.8cqw;
+  padding-bottom: 0.6cqw;
+  border-bottom: 1.5px solid #cbd5e1;
 }
 
 .legend-title {
-  font-size: 1.15cqw;
+  font-size: 1.35cqw;
   font-weight: 700;
   color: #0f172a;
   white-space: nowrap;
 }
 
 .legend-unit {
-  font-size: 1cqw;
+  font-size: 1.15cqw;
   color: #64748b;
   white-space: nowrap;
 }
@@ -1039,29 +1055,29 @@ input[type="number"] {
 .legend-items {
   display: flex;
   flex-direction: column;
-  gap: 0.5cqw;
+  gap: 0.65cqw;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1cqw;
-  font-size: 1.05cqw;
+  gap: 1.2cqw;
+  font-size: 1.2cqw;
 }
 
 .legend-swatch-label {
   display: flex;
   align-items: center;
-  gap: 0.6cqw;
+  gap: 0.8cqw;
   white-space: nowrap;
 }
 
 .legend-swatch {
-  width: 1.3cqw;
-  height: 1.1cqw;
-  border-radius: 0.25cqw;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  width: 1.6cqw;
+  height: 1.35cqw;
+  border-radius: 0.3cqw;
+  border: 1px solid rgba(0, 0, 0, 0.18);
   display: inline-block;
   flex-shrink: 0;
 }
@@ -1073,11 +1089,11 @@ input[type="number"] {
 }
 
 .legend-count-badge {
-  font-size: 0.95cqw;
-  color: #475569;
+  font-size: 1.05cqw;
+  color: #334155;
   background: #f1f5f9;
   border: 1px solid #cbd5e1;
-  padding: 0.1cqw 0.6cqw;
+  padding: 0.15cqw 0.7cqw;
   border-radius: 0.8cqw;
   font-weight: 600;
 }

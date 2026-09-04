@@ -510,9 +510,9 @@
 
                 <!-- Z-Score / Diverging Palettes (Placed below 白黒, grayed out in normal mode) -->
                 <div id="zscore-palette-box" class="zscore-palette-section disabled-section mt-3 p-2.5 border rounded" style="background:#f8fafc; border-color:#cbd5e1 !important; transition: all 0.3s ease;">
-                  <h6 class="mb-2 text-blue fw-bold flex-between" style="font-size:0.84rem;">
-                    <span><i class="fa-solid fa-scale-balanced me-1"></i> Zスコア・偏差値分析向け（両極・平均乖離パレット）</span>
-                    <span id="zscore-palette-badge" class="badge badge-secondary" style="font-size:0.68rem; font-weight:normal; background:#94a3b8;">Zスコア/偏差値選択時に開放</span>
+                  <h6 class="mb-2 text-blue fw-bold flex-between flex-wrap gap-1" style="font-size:0.84rem;">
+                    <span><i class="fa-solid fa-scale-balanced me-1"></i> Zスコア・偏差値分析向け（発散型パレット）</span>
+                    <span id="zscore-palette-badge" class="badge" style="font-size:0.7rem; font-weight:600; background:#94a3b8; color:#ffffff;"><i class="fa-solid fa-lock me-1"></i> Zスコア/偏差値選択時に解放</span>
                   </h6>
                   <div class="palette-grid">
                     <button class="palette-btn" data-palette="div_blue_red" title="青―白―赤 (平均以下:青, 平均以上:赤)">
@@ -536,8 +536,8 @@
                       <span>スペクトラル</span>
                     </button>
                   </div>
-                  <small class="text-muted d-block mt-1" style="font-size:0.72rem; line-height:1.3;">
-                    ※ 上記の「数値の変換・統計分析モード」で Zスコア または 偏差値 を選択すると有効化されます。
+                  <small id="zscore-palette-note" class="text-muted d-block mt-2" style="font-size:0.73rem; line-height:1.4;">
+                    ※「数値の変換・統計分析モード」で Zスコア または 偏差値 を選択すると解放されます。
                   </small>
                 </div>
 
@@ -800,6 +800,16 @@
               <div class="card-body">
                 
                 <div class="form-group mb-3">
+                  <label for="select-export-format" class="fw-bold text-dark">
+                    <i class="fa-solid fa-file-image text-blue me-1"></i> 保存形式（ファイルフォーマット）
+                  </label>
+                  <select id="select-export-format" class="form-control fw-bold mb-2" style="border-color:#3b82f6; background:#ffffff; font-size:0.95rem;">
+                    <option value="png" selected>🖼️ PNG形式（標準：ビットマップ画像）</option>
+                    <option value="svg">📐 SVG形式（ベクター画像：拡大してもぼやけない）</option>
+                  </select>
+                </div>
+
+                <div id="export-scale-group" class="form-group mb-3">
                   <label for="select-export-scale">用紙規格・解像度（A4横置き基準: 297×210mm）</label>
                   <select id="select-export-scale" class="form-control">
                     <option value="3" selected>A4横 印刷・論文用 (3508 × 2480 px / 300 DPI相当) 【最高画質・推奨】</option>
@@ -902,7 +912,10 @@
           <!-- Header Overlay inside Map -->
           <div class="map-overlay-header">
             <h2 id="display-map-title">青森県 市町村別総人口分布（2023年推計）</h2>
-            <p id="display-map-subtitle">全40市町村における人口集積と地域偏在の可視化</p>
+            <div class="map-subtitle-row">
+              <p id="display-map-subtitle">全40市町村における人口集積と地域偏在の可視化</p>
+              <span id="display-map-mode-tag" class="map-mode-text"></span>
+            </div>
           </div>
 
           <!-- Leaflet Map Container -->

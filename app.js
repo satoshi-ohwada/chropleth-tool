@@ -126,7 +126,8 @@
     miniMap: null,
     miniMapLayer: null,
     transformMode: "raw", // 'raw' | 'per_capita' | 'zscore' | 'tscore'
-    perCapitaMultiplier: 10000
+    perCapitaMultiplier: 10000,
+    exportFormat: "png" // 'png' | 'svg'
   };
 
   // --- 5. Variable Store Management & Multi-Variable Modal ---
@@ -1068,8 +1069,30 @@
     return colors[numClasses - 1];
   }
 
+  // --- Map Header Mode Badge / Subtitle Extension Update ---
+  function updateMapTransformModeBadge() {
+    const badgeEl = document.getElementById("display-map-mode-tag");
+    if (!badgeEl) return;
+
+    let label = "（実測値）";
+    if (state.transformMode === "zscore") {
+      label = "（Zスコア標準化偏差）";
+    } else if (state.transformMode === "tscore") {
+      label = "（偏差値 Tスコア）";
+    } else if (state.transformMode === "per_capita" || state.isPerCapitaMode) {
+      const mult = state.perCapitaMultiplier || 100;
+      if (mult === 100) label = "（人口100人あたり ％）";
+      else if (mult === 1000) label = "（人口1,000人あたり）";
+      else if (mult === 1) label = "（人口1人あたり）";
+      else label = `（人口${mult.toLocaleString()}人あたり）`;
+    }
+
+    badgeEl.textContent = label;
+  }
+
   // --- 10. Map Layer Rendering ---
   function renderGeoJSONLayer() {
+    updateMapTransformModeBadge();
     if (!state.geojsonData || !state.leafletMap) return;
 
     computeBreaks();
@@ -2198,6 +2221,36 @@
     zoomControls.forEach(el => el.style.display = "none");
     if (detailCard) detailCard.classList.add("hidden");
 
+    // Preserve original styles and clear box-shadow/borders to prevent edge vertical line artifacts
+    const prevBoxShadow = frame.style.boxShadow;
+    const prevBorderRadius = frame.style.borderRadius;
+    const prevBorder = frame.style.border;
+    const prevOutline = frame.style.outline;
+    const prevMargin = frame.style.margin;
+    const prevPadding = frame.style.padding;
+    const prevOverflow = frame.style.overflow;
+
+    const leafletEl = document.getElementById("leaflet-map");
+    const prevLeafletBorder = leafletEl ? leafletEl.style.border : "";
+    const prevLeafletOutline = leafletEl ? leafletEl.style.outline : "";
+    const prevLeafletBoxShadow = leafletEl ? leafletEl.style.boxShadow : "";
+    const prevLeafletOverflow = leafletEl ? leafletEl.style.overflow : "";
+
+    frame.style.boxShadow = "none";
+    frame.style.borderRadius = "0px";
+    frame.style.border = "none";
+    frame.style.outline = "none";
+    frame.style.margin = "0px";
+    frame.style.padding = "0px";
+    frame.style.overflow = "hidden";
+
+    if (leafletEl) {
+      leafletEl.style.border = "none";
+      leafletEl.style.outline = "none";
+      leafletEl.style.boxShadow = "none";
+      leafletEl.style.overflow = "hidden";
+    }
+
     try {
       if (!includeLabels) {
         if (state.labelGroup) state.labelGroup.clearLayers();
@@ -2220,57 +2273,111 @@
       // Scale 1: 1188 x 840 px (72 DPI screen quality)
       const frameRect = frame.getBoundingClientRect();
       const targetWidth = (scale === 3) ? 3508 : (scale === 2 ? 1754 : 1188);
+      const targetHeight = Math.round(targetWidth * (210 / 297));
       const pixelRatio = (frameRect.width > 0) ? (targetWidth / frameRect.width) : scale;
 
-      let dataUrl = "";
-      let blob = null;
+      const filterFn = (node) => {
+        if (node.classList && (
+          node.classList.contains("leaflet-control-zoom") ||
+          node.classList.contains("floating-map-controls") ||
+          node.classList.contains("municipality-detail-card")
+        )) {
+          return false;
+        }
+        return true;
+      };
 
-      if (window.htmlToImage) {
-        dataUrl = await window.htmlToImage.toPng(frame, {
+      let rawCanvas = null;
+
+      if (window.htmlToImage && typeof window.htmlToImage.toCanvas === "function") {
+        rawCanvas = await window.htmlToImage.toCanvas(frame, {
           pixelRatio: pixelRatio,
           skipFonts: true,
           backgroundColor: bgColor,
-          filter: (node) => {
-            if (node.classList && (
-              node.classList.contains("leaflet-control-zoom") ||
-              node.classList.contains("floating-map-controls") ||
-              node.classList.contains("municipality-detail-card")
-            )) {
-              return false;
-            }
-            return true;
-          }
-        });
-        blob = await window.htmlToImage.toBlob(frame, {
-          pixelRatio: pixelRatio,
-          skipFonts: true,
-          backgroundColor: bgColor,
-          filter: (node) => {
-            if (node.classList && (
-              node.classList.contains("leaflet-control-zoom") ||
-              node.classList.contains("floating-map-controls") ||
-              node.classList.contains("municipality-detail-card")
-            )) {
-              return false;
-            }
-            return true;
-          }
+          filter: filterFn
         });
       } else if (window.html2canvas) {
-        const canvas = await window.html2canvas(frame, {
+        rawCanvas = await window.html2canvas(frame, {
           scale: pixelRatio,
           useCORS: true,
           logging: false,
           backgroundColor: bgColor
         });
-        dataUrl = canvas.toDataURL("image/png");
-        blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+      } else if (window.htmlToImage && typeof window.htmlToImage.toPng === "function") {
+        const tempUrl = await window.htmlToImage.toPng(frame, {
+          pixelRatio: pixelRatio,
+          skipFonts: true,
+          backgroundColor: bgColor,
+          filter: filterFn
+        });
+        rawCanvas = await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            const c = document.createElement("canvas");
+            c.width = img.width;
+            c.height = img.height;
+            const ctx = c.getContext("2d");
+            ctx.drawImage(img, 0, 0);
+            resolve(c);
+          };
+          img.onerror = reject;
+          img.src = tempUrl;
+        });
       } else {
         throw new Error("画像生成ライブラリ (html-to-image) が読み込まれていません");
       }
 
-      return { dataUrl, blob };
+      // --- Clean Canvas Reconstruction with 4-Edge Inner Crop ---
+      // Safely trim 16px (Scale 3), 10px (Scale 2), 6px (Scale 1) from raw canvas edges
+      // to permanently eliminate any right-side vertical line artifacts, scrollbars, or border leaks.
+      const cleanCanvas = document.createElement("canvas");
+      cleanCanvas.width = targetWidth;
+      cleanCanvas.height = targetHeight;
+
+      const ctx = cleanCanvas.getContext("2d");
+
+      // Fill clean solid background
+      if (bgColor) {
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, targetWidth, targetHeight);
+      }
+
+      if (rawCanvas && rawCanvas.width > 0 && rawCanvas.height > 0) {
+        const safetyMargin = (scale === 3) ? 16 : (scale === 2 ? 10 : 6);
+        const srcX = Math.min(safetyMargin, Math.floor(rawCanvas.width * 0.05));
+        const srcY = Math.min(safetyMargin, Math.floor(rawCanvas.height * 0.05));
+        const srcW = Math.max(1, rawCanvas.width - (srcX * 2));
+        const srcH = Math.max(1, rawCanvas.height - (srcY * 2));
+
+        ctx.drawImage(
+          rawCanvas,
+          srcX, srcY, srcW, srcH,
+          0, 0, targetWidth, targetHeight
+        );
+      }
+
+      const dataUrl = cleanCanvas.toDataURL("image/png");
+      const blob = await new Promise(resolve => cleanCanvas.toBlob(resolve, "image/png"));
+
+      return { dataUrl, blob, width: targetWidth, height: targetHeight };
     } finally {
+      // Restore frame & leaflet styles
+      frame.style.boxShadow = prevBoxShadow;
+      frame.style.borderRadius = prevBorderRadius;
+      frame.style.border = prevBorder;
+      frame.style.outline = prevOutline;
+      frame.style.margin = prevMargin;
+      frame.style.padding = prevPadding;
+      frame.style.overflow = prevOverflow;
+
+      if (leafletEl) {
+        leafletEl.style.border = prevLeafletBorder;
+        leafletEl.style.outline = prevLeafletOutline;
+        leafletEl.style.boxShadow = prevLeafletBoxShadow;
+        leafletEl.style.overflow = prevLeafletOverflow;
+      }
+
+      zoomControls.forEach(el => el.style.display = "");
       zoomControls.forEach(el => el.style.display = "");
       if (legendBox) legendBox.style.display = "";
       if (state.labelMode !== prevLabelMode) state.labelMode = prevLabelMode;
@@ -2278,7 +2385,33 @@
     }
   }
 
+  // --- Standalone SVG Exporter ---
+  async function generateMapSVGData() {
+    // Generate clean high-res canvas render (eliminates foreignObject bugs & security blocks)
+    const { dataUrl, blob: pngBlob, width: imgW, height: imgH } = await generateMapPNGData();
+
+    const w = imgW || 3508;
+    const h = imgH || 2480;
+
+    const bgColor = (state.mapBg === "minimal-dark") ? "#0f172a" : "#ffffff";
+
+    // Build pure, standalone SVG XML document compliant with W3C SVG standards
+    const svgXml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <rect width="${w}" height="${h}" fill="${bgColor}"/>
+  <image width="${w}" height="${h}" xlink:href="${dataUrl}" />
+</svg>`;
+
+    const svgBlob = new Blob([svgXml], { type: "image/svg+xml;charset=utf-8" });
+    const svgDataUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgXml);
+
+    return { dataUrl: svgDataUrl, blob: svgBlob, isSvg: true, svgXml: svgXml };
+  }
+
   async function exportMapPNG() {
+    const fmt = state.exportFormat || "png";
+    const fmtUpper = fmt.toUpperCase();
+
     const exportBtns = [
       document.getElementById("btn-export-png-header"),
       document.getElementById("btn-export-png-tab")
@@ -2290,29 +2423,47 @@
     });
 
     try {
-      const { dataUrl } = await generateMapPNGData();
-      const filename = `Aomori_Choropleth_${Date.now()}.png`;
-      
-      const link = document.createElement("a");
-      link.download = filename;
-      link.href = dataUrl;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      if (fmt === "svg") {
+        const { dataUrl } = await generateMapSVGData();
+        const filename = `Aomori_Choropleth_${Date.now()}.svg`;
+        
+        const link = document.createElement("a");
+        link.download = filename;
+        link.href = dataUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
 
-      showToast("PNG画像を保存しました", "success");
+        showToast("SVG（ベクター画像）を保存しました", "success");
+      } else {
+        const { dataUrl } = await generateMapPNGData();
+        const filename = `Aomori_Choropleth_${Date.now()}.png`;
+        
+        const link = document.createElement("a");
+        link.download = filename;
+        link.href = dataUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        showToast("PNG画像を保存しました", "success");
+      }
     } catch (err) {
-      console.error("PNG export error:", err);
-      showToast("PNG画像の保存に失敗しました: " + err.message, "error");
+      console.error("Map export error:", err);
+      showToast(`画像 (${fmtUpper}) の保存に失敗しました: ` + err.message, "error");
     } finally {
-      exportBtns.forEach(b => {
-        b.disabled = false;
-        b.innerHTML = `<i class="fa-solid fa-download"></i> マップ保存 (PNG)`;
-      });
+      const exportHeader = document.getElementById("btn-export-png-header");
+      const exportTab = document.getElementById("btn-export-png-tab");
+      if (exportHeader) exportHeader.innerHTML = `<i class="fa-solid fa-download"></i> マップ保存 (${fmtUpper})`;
+      if (exportTab) exportTab.innerHTML = `<i class="fa-solid fa-download"></i> マップ保存 (${fmtUpper}を出力)`;
+      exportBtns.forEach(b => b.disabled = false);
     }
   }
 
   async function copyMapPNGToClipboard() {
+    const fmt = state.exportFormat || "png";
+    const fmtUpper = fmt.toUpperCase();
+
     const copyBtns = [
       document.getElementById("btn-copy-png-header"),
       document.getElementById("btn-copy-png-tab")
@@ -2324,23 +2475,121 @@
     });
 
     try {
-      const { blob } = await generateMapPNGData();
-      
-      if (blob && navigator.clipboard && window.ClipboardItem) {
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-        showToast("PNG画像をクリップボードにコピーしました！ WordやPowerPointにそのまま貼り付けできます", "success");
+      if (fmt === "svg") {
+        const { dataUrl, blob } = await generateMapSVGData();
+        let copied = false;
+
+        if (blob && navigator.clipboard && window.ClipboardItem) {
+          try {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/svg+xml': blob })]);
+            copied = true;
+          } catch (e1) {
+            try {
+              const svgText = decodeURIComponent(dataUrl.replace(/^data:image\/svg\+xml;charset=utf-8,/, ""));
+              await navigator.clipboard.writeText(svgText);
+              copied = true;
+            } catch (e2) {
+              console.warn("SVG copy text fallback failed:", e2);
+            }
+          }
+        }
+
+        if (copied) {
+          showToast("SVG画像をクリップボードにコピーしました", "success");
+        } else {
+          // Automatic download rescue for SVG
+          const filename = `Aomori_Choropleth_${Date.now()}.svg`;
+          const link = document.createElement("a");
+          link.download = filename;
+          link.href = dataUrl;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          showToast("クリップボード制限が検出されたため、SVGファイルをダウンロードしました", "info");
+        }
       } else {
-        throw new Error("お使いのブラウザはクリップボード画像コピーに対応していません");
+        const { dataUrl, blob } = await generateMapPNGData();
+        let copied = false;
+
+        // Method 1: Standard Clipboard API (PNG Blob)
+        if (blob && navigator.clipboard && window.ClipboardItem) {
+          try {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            copied = true;
+          } catch (clipErr) {
+            console.warn("Direct ClipboardItem png failed, trying HTML fallback:", clipErr);
+          }
+        }
+
+        // Method 2: Standard Clipboard API with HTML <img> tag
+        if (!copied && navigator.clipboard && window.ClipboardItem && dataUrl) {
+          try {
+            const htmlBlob = new Blob([`<img src="${dataUrl}" alt="Aomori Map">`], { type: 'text/html' });
+            await navigator.clipboard.write([new ClipboardItem({ 'text/html': htmlBlob })]);
+            copied = true;
+          } catch (htmlClipErr) {
+            console.warn("ClipboardItem html failed:", htmlClipErr);
+          }
+        }
+
+        // Method 3: Legacy execCommand Selection Copy Fallback
+        if (!copied && dataUrl) {
+          try {
+            copied = copyImageViaExecCommand(dataUrl);
+          } catch (execErr) {
+            console.warn("execCommand copy failed:", execErr);
+          }
+        }
+
+        if (copied) {
+          showToast("PNG画像をクリップボードにコピーしました", "success");
+        } else {
+          const filename = `Aomori_Choropleth_${Date.now()}.png`;
+          const link = document.createElement("a");
+          link.download = filename;
+          link.href = dataUrl;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          showToast("クリップボード制限が検出されたため、PNG画像をダウンロードしました", "info");
+        }
       }
     } catch (err) {
       console.error("Clipboard copy error:", err);
-      showToast("クリップボードへのコピーに失敗しました: " + err.message, "error");
+      showToast(`画像のコピーに失敗しました: ` + err.message, "error");
     } finally {
-      copyBtns.forEach(b => {
-        b.disabled = false;
-        b.innerHTML = `<i class="fa-regular fa-copy"></i> 画像コピー`;
-      });
+      const copyHeader = document.getElementById("btn-copy-png-header");
+      const copyTab = document.getElementById("btn-copy-png-tab");
+      if (copyHeader) copyHeader.innerHTML = `<i class="fa-regular fa-copy"></i> ${fmtUpper}コピー`;
+      if (copyTab) copyTab.innerHTML = `<i class="fa-regular fa-copy"></i> クリップボードに${fmtUpper}をコピー`;
+      copyBtns.forEach(b => b.disabled = false);
     }
+  }
+
+  // Fallback function for execCommand selection copy
+  function copyImageViaExecCommand(dataUrl) {
+    const container = document.createElement("div");
+    container.contentEditable = "true";
+    container.style.position = "fixed";
+    container.style.left = "-9999px";
+    container.style.top = "-9999px";
+    container.style.opacity = "0";
+
+    const img = document.createElement("img");
+    img.src = dataUrl;
+    container.appendChild(img);
+    document.body.appendChild(container);
+
+    const range = document.createRange();
+    range.selectNodeContents(container);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    const success = document.execCommand("copy");
+    selection.removeAllRanges();
+    document.body.removeChild(container);
+    return success;
   }
 
   // --- 18. Toast Notifications ---
@@ -2526,6 +2775,7 @@
     function updateZScorePaletteUIState() {
       const box = document.getElementById("zscore-palette-box");
       const badge = document.getElementById("zscore-palette-badge");
+      const note = document.getElementById("zscore-palette-note");
       if (!box) return;
 
       const isZorT = (state.transformMode === "zscore" || state.transformMode === "tscore");
@@ -2534,15 +2784,23 @@
         box.classList.remove("disabled-section");
         box.classList.add("active-section");
         if (badge) {
-          badge.textContent = "有効（Zスコア・偏差値モード）";
+          badge.innerHTML = `<i class="fa-solid fa-circle-check me-1"></i> 平均中心の発散型カラー（選択可能）`;
           badge.style.background = "#2563eb";
+        }
+        if (note) {
+          note.className = "text-blue d-block mt-2 fw-bold";
+          note.innerHTML = `✨ 平均値を「白/淡色」、プラスの偏りを「赤/暖色」、マイナスの偏りを「青/冷色」で対照的に表現します。`;
         }
       } else {
         box.classList.remove("active-section");
         box.classList.add("disabled-section");
         if (badge) {
-          badge.textContent = "Zスコア/偏差値選択時に開放";
+          badge.innerHTML = `<i class="fa-solid fa-lock me-1"></i> Zスコア/偏差値選択時に解放`;
           badge.style.background = "#94a3b8";
+        }
+        if (note) {
+          note.className = "text-muted d-block mt-2";
+          note.innerHTML = `※「数値の変換・統計分析モード」で Zスコア または 偏差値 を選択すると解放されます。`;
         }
       }
     }
@@ -2808,6 +3066,32 @@
     if (scaleSelect) {
       scaleSelect.addEventListener("change", (e) => {
         state.exportScale = parseInt(e.target.value, 10);
+      });
+    }
+
+    // Export Format Select (PNG / SVG)
+    const formatSelect = document.getElementById("select-export-format");
+    if (formatSelect) {
+      formatSelect.addEventListener("change", (e) => {
+        state.exportFormat = e.target.value;
+        const fmtUpper = state.exportFormat.toUpperCase();
+
+        const exportHeader = document.getElementById("btn-export-png-header");
+        const exportTab = document.getElementById("btn-export-png-tab");
+        const copyHeader = document.getElementById("btn-copy-png-header");
+        const copyTab = document.getElementById("btn-copy-png-tab");
+        const scaleGroup = document.getElementById("export-scale-group");
+
+        if (exportHeader) exportHeader.innerHTML = `<i class="fa-solid fa-download"></i> マップ保存 (${fmtUpper})`;
+        if (exportTab) exportTab.innerHTML = `<i class="fa-solid fa-download"></i> マップ保存 (${fmtUpper}を出力)`;
+        if (copyHeader) copyHeader.innerHTML = `<i class="fa-regular fa-copy"></i> ${fmtUpper}コピー`;
+        if (copyTab) copyTab.innerHTML = `<i class="fa-regular fa-copy"></i> クリップボードに${fmtUpper}をコピー`;
+
+        if (scaleGroup) {
+          scaleGroup.style.display = (state.exportFormat === "svg") ? "none" : "block";
+        }
+
+        showToast(`画像出力形式を「${fmtUpper}」に変更しました`, "info");
       });
     }
 
