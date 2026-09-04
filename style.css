@@ -949,8 +949,7 @@ input[type="number"] {
   top: 1.5cqw;
   left: 5.2cqw; /* Avoid overlap with Leaflet zoom control */
   z-index: 500;
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(10px);
+  background: #ffffff;
   padding: 1.2cqw 1.8cqw;
   border-radius: 0.9cqw;
   border: 1px solid #cbd5e1;
@@ -994,8 +993,7 @@ input[type="number"] {
   bottom: 1cqw;
   left: 1.5cqw;
   z-index: 500;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(8px);
+  background: #ffffff;
   padding: 0.5cqw 1.2cqw;
   border-radius: 0.5cqw;
   border: 1px solid #e2e8f0;
@@ -1013,8 +1011,7 @@ input[type="number"] {
 .map-legend-box {
   position: absolute;
   z-index: 500;
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(10px);
+  background: #ffffff;
   padding: 1.2cqw 1.6cqw;
   border-radius: 0.9cqw;
   border: 1px solid #cbd5e1;

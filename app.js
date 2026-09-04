@@ -2251,6 +2251,12 @@
       leafletEl.style.overflow = "hidden";
     }
 
+    const overlays = frame.querySelectorAll(".map-legend-box, .map-overlay-header, .map-overlay-footer");
+    overlays.forEach(el => {
+      el.style.backdropFilter = "none";
+      el.style.webkitBackdropFilter = "none";
+    });
+
     try {
       if (!includeLabels) {
         if (state.labelGroup) state.labelGroup.clearLayers();
