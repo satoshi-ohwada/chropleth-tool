@@ -645,6 +645,15 @@ input[type="number"] {
   border-color: #fca5a5;
   background: #fef2f2;
 }
+.cell-val-input.is-special {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #d97706;
+  font-weight: 700;
+}
+.text-amber {
+  color: #d97706 !important;
+}
 
 /* Radio Group Cards */
 .radio-group {
@@ -837,20 +846,30 @@ input[type="number"] {
 }
 .map-export-frame.theme-dark .map-overlay-header,
 .map-export-frame.theme-dark .map-overlay-footer,
-.map-export-frame.theme-dark .map-legend-box {
+.map-export-frame.theme-dark .map-legend-box,
+.map-export-frame.theme-dark .map-boxplot-box {
   background: rgba(15, 23, 42, 0.95);
   border-color: #334155;
   color: #f8fafc;
 }
 .map-export-frame.theme-dark .map-overlay-header h2,
-.map-export-frame.theme-dark .legend-title {
+.map-export-frame.theme-dark .legend-title,
+.map-export-frame.theme-dark .boxplot-title {
   color: #f8fafc;
 }
 .map-export-frame.theme-dark .map-overlay-header p,
 .map-export-frame.theme-dark .map-remarks-text,
 .map-export-frame.theme-dark .legend-unit,
-.map-export-frame.theme-dark .legend-range-text {
+.map-export-frame.theme-dark .legend-range-text,
+.map-export-frame.theme-dark .boxplot-summary {
   color: #cbd5e1;
+}
+.map-export-frame.theme-dark .boxplot-badge {
+  background: #1e3a8a;
+  color: #bfdbfe;
+}
+.map-export-frame.theme-dark .boxplot-header {
+  border-bottom-color: #334155;
 }
 
 /* Leaflet Canvas */
@@ -903,6 +922,11 @@ input[type="number"] {
   border-color: rgba(15, 23, 42, 0.2) !important;
 }
 
+.static-marker-card.leader-offset {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0.2cqw 0.6cqw rgba(59, 130, 246, 0.2) !important;
+}
+
 .static-label-compact {
   font-size: 0.85cqw !important;
   font-weight: 700 !important;
@@ -941,6 +965,45 @@ input[type="number"] {
   color: #1e40af !important;
   line-height: 1.1 !important;
   white-space: nowrap !important;
+}
+
+/* Dark Theme Support for Static Map Marker Badges */
+.map-export-frame.theme-dark .static-marker-card {
+  background: rgba(15, 23, 42, 0.92) !important;
+  border-color: rgba(148, 163, 184, 0.4) !important;
+  box-shadow: 0 0.2cqw 0.5cqw rgba(0, 0, 0, 0.4) !important;
+}
+.map-export-frame.theme-dark .static-marker-card.compact {
+  border-color: rgba(148, 163, 184, 0.3) !important;
+}
+.map-export-frame.theme-dark .static-marker-card.leader-offset {
+  border-color: #60a5fa !important;
+  box-shadow: 0 0.2cqw 0.6cqw rgba(96, 165, 250, 0.3) !important;
+}
+.map-export-frame.theme-dark .static-label-compact {
+  color: #f8fafc !important;
+}
+.map-export-frame.theme-dark .static-label-compact span {
+  color: #93c5fd !important;
+}
+.map-export-frame.theme-dark .static-label-name {
+  color: #f8fafc !important;
+}
+.map-export-frame.theme-dark .static-label-val {
+  color: #93c5fd !important;
+}
+
+.static-label-compact span.special-val {
+  color: #d97706 !important;
+  font-weight: 800;
+}
+.static-label-val.special-val {
+  color: #d97706 !important;
+  font-weight: 800;
+}
+.map-export-frame.theme-dark .static-label-compact span.special-val,
+.map-export-frame.theme-dark .static-label-val.special-val {
+  color: #fbbf24 !important;
 }
 
 /* Map Header Overlay */
@@ -1093,6 +1156,127 @@ input[type="number"] {
   padding: 0.15cqw 0.7cqw;
   border-radius: 0.8cqw;
   font-weight: 600;
+}
+
+.legend-divider {
+  border-top: 1px dashed rgba(148, 163, 184, 0.45);
+  margin: 0.4cqw 0;
+  padding-top: 0.1cqw;
+}
+
+.legend-item-special .legend-range-text {
+  color: #64748b;
+  font-size: 1.15cqw;
+}
+
+.legend-count-badge.special {
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px dashed #cbd5e1;
+}
+
+.map-export-frame.theme-dark .legend-divider {
+  border-top-color: #334155;
+}
+.map-export-frame.theme-dark .legend-item-special .legend-range-text {
+  color: #94a3b8;
+}
+.map-export-frame.theme-dark .legend-count-badge.special {
+  background: #1e293b;
+  color: #cbd5e1;
+  border-color: #475569;
+}
+
+/* Box Plot Overlay */
+.map-boxplot-box {
+  position: absolute;
+  z-index: 500;
+  background: #ffffff;
+  padding: 1cqw 1.2cqw;
+  border-radius: 0.9cqw;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 0.6cqw 2cqw rgba(0, 0, 0, 0.08);
+  width: 17.5cqw;
+  min-width: 140px;
+  pointer-events: auto;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.map-boxplot-box.hidden {
+  display: none !important;
+}
+
+.map-boxplot-box.position-leftmiddle {
+  top: 50%;
+  left: 1.8cqw;
+  transform: translateY(-50%);
+}
+
+.map-boxplot-box.position-rightmiddle {
+  top: 50%;
+  right: 1.8cqw;
+  transform: translateY(-50%);
+}
+
+.map-boxplot-box.position-bottomleft {
+  bottom: 4.5cqw;
+  left: 1.8cqw;
+}
+
+.map-boxplot-box.position-bottomright {
+  bottom: 1.8cqw;
+  right: 1.8cqw;
+}
+
+.map-boxplot-box.position-topleft {
+  top: 7.5cqw;
+  left: 5.5cqw;
+}
+
+.map-boxplot-box.position-topright {
+  top: 1.8cqw;
+  right: 1.8cqw;
+}
+
+.boxplot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5cqw;
+  margin-bottom: 0.4cqw;
+  padding-bottom: 0.4cqw;
+  border-bottom: 1.5px solid #cbd5e1;
+}
+
+.boxplot-title {
+  font-size: 1.15cqw;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.boxplot-badge {
+  font-size: 0.85cqw;
+  font-weight: 600;
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 0.15cqw 0.5cqw;
+  border-radius: 0.4cqw;
+  white-space: nowrap;
+}
+
+.boxplot-body {
+  width: 100%;
+}
+
+.boxplot-summary {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8cqw;
+  color: #64748b;
+  margin-top: 0.3cqw;
+  padding-top: 0.3cqw;
+  border-top: 1px dashed #cbd5e1;
 }
 
 /* Floating Controls */

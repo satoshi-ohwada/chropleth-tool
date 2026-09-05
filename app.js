@@ -127,8 +127,39 @@
     miniMapLayer: null,
     transformMode: "raw", // 'raw' | 'per_capita' | 'zscore' | 'tscore'
     perCapitaMultiplier: 10000,
-    exportFormat: "png" // 'png' | 'svg'
+    exportFormat: "png", // 'png' | 'svg'
+    showBoxplot: true,
+    boxplotPosition: "auto", // 'auto' | 'leftmiddle' | 'rightmiddle' | 'bottomleft' | 'bottomright'
+    hoveredMunicipality: null
   };
+
+  // --- 4.5 Special Values Handler (秘匿 X, 欠測 -, 不詳 …) ---
+  function normalizeSpecialValue(val) {
+    if (val === null || val === undefined) return null;
+    if (typeof val === "number") return null;
+    const s = String(val).trim();
+    if (!s) return null;
+    if (/^[xXｘＸ]$/.test(s)) return "X";
+    if (/^[-ー―—－]$/.test(s)) return "-";
+    if (/^[.]{2,}$/.test(s) || s === "…" || s === "‥") return "…";
+    if (/^(N\/?A|null|none|\*)$/i.test(s)) return "-";
+    return null;
+  }
+
+  function isSpecialValue(val) {
+    return val === "X" || val === "-" || val === "…";
+  }
+
+  function isNumericValue(val) {
+    return typeof val === "number" && !isNaN(val);
+  }
+
+  function getSpecialValueLabel(val) {
+    if (val === "X") return "秘匿 (X)";
+    if (val === "-") return "欠測・該当なし (-)";
+    if (val === "…") return "不詳・欠測 (…)";
+    return "未入力";
+  }
 
   // --- 5. Variable Store Management & Multi-Variable Modal ---
   function initEmptyState() {
@@ -156,7 +187,7 @@
     const displayUnit = document.getElementById("display-legend-unit");
     const displayRemarks = document.getElementById("display-map-remarks");
 
-    if (displayTitle) displayTitle.textContent = "青森県 市町村別統計マップ";
+    if (displayTitle) displayTitle.textContent = "市町村別統計マップ";
     if (displaySubtitle) displaySubtitle.textContent = "データを読み込むと作図が始まります";
     if (displayUnit) displayUnit.textContent = "";
     if (displayRemarks) displayRemarks.textContent = "";
@@ -269,11 +300,22 @@
 
     keys.forEach(key => {
       const v = state.variables[key];
-      const vals = Object.values(v.data || {}).filter(x => typeof x === 'number' && !isNaN(x));
+      const allEntries = Object.values(v.data || {});
+      const vals = allEntries.filter(x => isNumericValue(x));
+      const spVals = allEntries.filter(x => isSpecialValue(x));
       const count = vals.length;
+      const spCount = spVals.length;
       const min = count > 0 ? Math.min(...vals) : 0;
       const max = count > 0 ? Math.max(...vals) : 0;
       const unitStr = v.unit ? ` (${v.unit})` : '';
+
+      let metaText = `${count} 自治体の数値データ`;
+      if (spCount > 0) {
+        metaText += ` <span style="color:#d97706; font-weight:600;">(秘匿・欠測: ${spCount})</span>`;
+      }
+      if (count > 0) {
+        metaText += ` | 範囲: ${min.toLocaleString()} 〜 ${max.toLocaleString()} ${v.unit || ''}`;
+      }
 
       const card = document.createElement("label");
       card.className = `var-radio-card ${key === activeKey ? 'active' : ''}`;
@@ -284,7 +326,7 @@
             <span>${v.label || (v.name + unitStr)}</span>
           </div>
           <div class="var-card-meta">
-            ${count} 自治体のデータ | 範囲: ${min.toLocaleString()} 〜 ${max.toLocaleString()} ${v.unit || ''}
+            ${metaText}
           </div>
         </div>
       `;
@@ -368,15 +410,23 @@
     });
 
     state.currentValues = Object.assign({}, v.data);
-    state.title = v.title || `青森県 市町村別 ${v.name}`;
+    state.title = v.title || `市町村別 ${v.name}`;
     state.subtitle = v.subtitle || "";
-    state.unit = v.unit ? `単位：${v.unit}` : "";
+    if (v.unit) {
+      state.unit = (v.unit.startsWith("単位：") || v.unit.startsWith("単位:")) ? v.unit : `単位：${v.unit}`;
+    } else {
+      state.unit = "";
+    }
     state.remarks = v.remarks || "";
-    if (v.palette) state.paletteKey = v.palette;
+    
+    // カラーパレットはユーザーが選択した状態を維持する（変数の切り替えでリセットしない）
+    if (!state.paletteKey) {
+      state.paletteKey = v.palette || "blues";
+    }
 
     // Update Palette Buttons Active State
     document.querySelectorAll(".palette-btn").forEach(btn => {
-      btn.classList.toggle("active", btn.getAttribute("data-palette") === state.paletteKey);
+      btn.classList.toggle("active", !state.useCustomGradient && btn.getAttribute("data-palette") === state.paletteKey);
     });
 
     // Update Text Inputs & Displays
@@ -1028,8 +1078,10 @@
   }
 
   function getColorForValue(val) {
-    if (val === undefined || val === null || isNaN(val)) {
-      return "#f1f5f9"; // Neutral light slate for unentered data
+    if (val === undefined || val === null || isNaN(val) || typeof val !== 'number') {
+      if (val === "X") return "#cbd5e1"; // 秘匿 (X) : 中立スレートグレー
+      if (val === "-" || val === "…") return "#e2e8f0"; // 欠測・該当なし : 薄いスレートグレー
+      return "#f1f5f9"; // 未入力データ
     }
 
     const breaks = state.computedBreaks;
@@ -1108,13 +1160,15 @@
         let val = matchedName ? getEffectiveValues()[matchedName] : null;
         let fillColor = getColorForValue(val);
         let strokeInfo = getBorderStrokeForFeature(fillColor);
+        let isSpecial = isSpecialValue(val);
 
         return {
           fillColor: fillColor,
-          fillOpacity: 0.92,
-          color: strokeInfo.color,
+          fillOpacity: isSpecial ? 0.95 : 0.92,
+          color: isSpecial ? "#64748b" : strokeInfo.color,
           weight: strokeInfo.weight,
-          opacity: parseFloat(state.strokeOpacity)
+          opacity: parseFloat(state.strokeOpacity),
+          dashArray: isSpecial ? "3,3" : null
         };
       },
       onEachFeature: (feature, layer) => {
@@ -1122,19 +1176,30 @@
         let matchedName = normalizeName(rawName) || rawName;
         let val = getEffectiveValues()[matchedName];
         let rawVal = state.currentValues[matchedName];
-        let hasVal = (val !== undefined && val !== null && !isNaN(val));
-        let displayVal = hasVal ? val.toLocaleString() : "データなし";
+        let hasVal = isNumericValue(val);
+        let isSpecial = isSpecialValue(val);
+
+        let displayVal = "";
         let extraInfo = "";
 
-        if (hasVal && (state.transformMode === "zscore" || state.transformMode === "tscore")) {
-          extraInfo = `<div style="color:#cbd5e1; font-size:0.75rem; margin-top:2px;">(実測値: ${rawVal !== undefined ? rawVal.toLocaleString() : 'なし'})</div>`;
+        if (hasVal) {
+          displayVal = `${val.toLocaleString()} <small style="color:#cbd5e1">${getEffectiveUnit()}</small>`;
+          if (state.transformMode === "zscore" || state.transformMode === "tscore") {
+            extraInfo = `<div style="color:#cbd5e1; font-size:0.75rem; margin-top:2px;">(実測値: ${rawVal !== undefined ? rawVal.toLocaleString() : 'なし'})</div>`;
+          }
+        } else if (isSpecial) {
+          let spLabel = getSpecialValueLabel(val);
+          displayVal = `<span style="color:#f59e0b; font-weight:700;">${spLabel}</span>`;
+          extraInfo = `<div style="color:#94a3b8; font-size:0.75rem; margin-top:2px;">※ 統計集計対象外</div>`;
+        } else {
+          displayVal = `<span style="color:#94a3b8;">未入力</span>`;
         }
 
         // Interactive hover tooltip
         layer.bindTooltip(`
           <div style="font-weight:700; font-size:0.9rem;">${matchedName}</div>
           <div style="color:#60a5fa; font-size:0.85rem; margin-top:2px;">
-            ${displayVal} <small style="color:#cbd5e1">${getEffectiveUnit()}</small>
+            ${displayVal}
           </div>
           ${extraInfo}
         `, { sticky: true, direction: 'top', offset: [0, -10] });
@@ -1149,9 +1214,17 @@
               fillOpacity: 1.0
             });
             l.bringToFront();
+            state.hoveredMunicipality = matchedName;
+            if (hasVal && typeof setBoxplotHover === "function") {
+              setBoxplotHover(matchedName, val);
+            }
           },
           mouseout: (e) => {
             state.geojsonLayer.resetStyle(e.target);
+            state.hoveredMunicipality = null;
+            if (typeof clearBoxplotHover === "function") {
+              clearBoxplotHover();
+            }
           },
           click: (e) => {
             showMunicipalityDetail(matchedName);
@@ -1184,7 +1257,7 @@
     renderMiniMapLayer();
   }
 
-  // Permanent Static Label Marker Layer with Dynamic Overlap Resolution
+  // Permanent Static Label Marker Layer with Dynamic Overlap Resolution & Bounded Displacement
   function renderLabelsLayer() {
     if (!state.leafletMap || !state.dynamicCentroids || Object.keys(state.dynamicCentroids).length === 0) return;
 
@@ -1196,35 +1269,51 @@
     if (state.labelMode === "none") return;
 
     const CITIES_LIST = ["青森市", "弘前市", "八戸市", "黒石市", "五所川原市", "十和田市", "三沢市", "むつ市", "つがる市", "平川市"];
+    const isCitiesOnly = (state.labelMode === "cities_only");
+    const isCompact = (state.labelMode === "compact");
     let labels = [];
 
     AOMORI_MUNICIPALITIES.forEach(m => {
-      if (state.labelMode === "cities_only" && !CITIES_LIST.includes(m.name)) return;
+      if (isCitiesOnly && !CITIES_LIST.includes(m.name)) return;
 
       let centroid = state.dynamicCentroids[m.name];
       if (!centroid) return;
 
       let val = getEffectiveValues()[m.name];
-      let hasVal = (val !== undefined && val !== null && !isNaN(val));
-      let shortVal = hasVal ? formatNumber(val) : "";
+      let hasVal = isNumericValue(val);
+      let isSpecial = isSpecialValue(val);
+      let shortVal = hasVal ? formatNumber(val) : (isSpecial ? val : "");
+      let nameOnly = (state.labelContent === "name_only" || (!hasVal && !isSpecial));
 
       let labelHTML = "";
-      
-      // Calculate approximate text width
-      let textLen = m.name.length;
-      if (state.labelContent === "name_val" && hasVal) {
-        textLen += shortVal.length + 1; // +1 for some spacing
-      }
-      
-      let w = 40 + (textLen * 12); // Base width + approx char width
-      let h = 36;
-      
-      if (state.labelMode === "compact") {
-        labelHTML = `<div class="static-label-compact">${m.name}${state.labelContent === "name_val" ? `<span>${shortVal}</span>` : ""}</div>`;
-        w = 30 + (textLen * 10);
-        h = 24;
+      let w = 40;
+      let h = 20;
+
+      if (isCompact) {
+        // コンパクト表示: スリムな1行インライン表示（領域内に整然と収容）
+        if (nameOnly) {
+          labelHTML = `<div class="static-label-compact">${m.name}</div>`;
+          w = Math.round(m.name.length * 11 + 8);
+          h = 17;
+        } else {
+          let spClass = isSpecial ? ' class="special-val"' : '';
+          labelHTML = `<div class="static-label-compact">${m.name}<span${spClass}>${shortVal}</span></div>`;
+          w = Math.round((m.name.length + shortVal.length) * 8.5 + 10);
+          h = 18;
+        }
       } else {
-        labelHTML = `<div class="static-label-name">${m.name}</div>${state.labelContent === "name_val" ? `<div class="static-label-val">${shortVal}</div>` : ""}`;
+        // 標準表示 (cities_only または all/standard)
+        if (nameOnly) {
+          labelHTML = `<div class="static-label-name">${m.name}</div>`;
+          w = Math.round(m.name.length * 12 + 10);
+          h = 22;
+        } else {
+          let valClass = isSpecial ? "static-label-val special-val" : "static-label-val";
+          labelHTML = `<div class="static-label-name">${m.name}</div><div class="${valClass}">${shortVal}</div>`;
+          let maxLen = Math.max(m.name.length, shortVal.length);
+          w = Math.round(maxLen * 11.5 + 12);
+          h = 30;
+        }
       }
 
       let pt = state.leafletMap.latLngToLayerPoint(centroid);
@@ -1241,28 +1330,38 @@
       });
     });
 
-    // Force-directed layout for overlap resolution
-    const ITERATIONS = 50;
-    const REPULSION = 0.5;
-    const SPRING = 0.05;
+    // 領域外への飛び出しを厳格に防止する有界フォースレイアウト（Bounded Force-Directed Layout）
+    // コンパクト表示では最大14px、標準表示でも最大25px以内に制限（近傍境界内への収容保証）
+    const ITERATIONS = 35;
+    const SPRING = isCompact ? 0.28 : 0.22;
+    const maxOffset = isCompact ? 14 : 25;
+    const REPULSION_BASE = isCompact ? 0.35 : 0.45;
 
     for (let i = 0; i < ITERATIONS; i++) {
+      let temp = Math.pow(1.0 - (i / ITERATIONS), 1.2); // 焼きなまし減衰（安定収束）
+
       for (let a = 0; a < labels.length; a++) {
         for (let b = a + 1; b < labels.length; b++) {
           let la = labels[a];
           let lb = labels[b];
-          
+
           let dx = la.x - lb.x;
           let dy = la.y - lb.y;
           let dist = Math.sqrt(dx * dx + dy * dy);
-          
-          let minDistX = (la.w + lb.w) / 2 + 5; // 5px padding
-          let minDistY = (la.h + lb.h) / 2 + 5;
-          
+
+          let minDistX = (la.w + lb.w) / 2 + 3; // 3px padding
+          let minDistY = (la.h + lb.h) / 2 + 3;
+
           if (Math.abs(dx) < minDistX && Math.abs(dy) < minDistY) {
-            if (dist === 0) { dx = (Math.random()-0.5); dy = (Math.random()-0.5); dist = Math.sqrt(dx*dx+dy*dy); }
-            let pushX = (dx / dist) * REPULSION * (minDistX - Math.abs(dx));
-            let pushY = (dy / dist) * REPULSION * (minDistY - Math.abs(dy));
+            if (dist === 0) {
+              dx = (Math.random() - 0.5);
+              dy = (Math.random() - 0.5);
+              dist = Math.sqrt(dx * dx + dy * dy);
+            }
+            let overlapX = minDistX - Math.abs(dx);
+            let overlapY = minDistY - Math.abs(dy);
+            let pushX = (dx / dist) * REPULSION_BASE * overlapX * temp;
+            let pushY = (dy / dist) * REPULSION_BASE * overlapY * temp;
             la.x += pushX;
             la.y += pushY;
             lb.x -= pushX;
@@ -1270,35 +1369,51 @@
           }
         }
       }
+
+      // 重心への復元引力と、領域外飛び出し防止の最大変位クランプ
       labels.forEach(l => {
         l.x += (l.origX - l.x) * SPRING;
         l.y += (l.origY - l.y) * SPRING;
+
+        let offX = l.x - l.origX;
+        let offY = l.y - l.origY;
+        let distFromOrig = Math.sqrt(offX * offX + offY * offY);
+        if (distFromOrig > maxOffset) {
+          let scale = maxOffset / distFromOrig;
+          l.x = l.origX + offX * scale;
+          l.y = l.origY + offY * scale;
+        }
       });
     }
 
     labels.forEach(l => {
       let finalPt = L.point(l.x, l.y);
       let targetPos = state.leafletMap.layerPointToLatLng(finalPt);
-      
+
       let distFromOrig = Math.sqrt(Math.pow(l.x - l.origX, 2) + Math.pow(l.y - l.origY, 2));
-      let hasMoved = distFromOrig > 12; // 12px threshold for drawing leader line
-      
-      if (hasMoved) {
+      // コンパクト表示では引き出し線を出さず領域内にすっきり配置
+      // 標準表示で 16px 以上動いた場合のみ細い引き出し線を表示
+      let showLeader = (!isCompact && distFromOrig >= 16);
+
+      if (showLeader) {
         L.polyline([l.latlng, targetPos], {
-          color: "#2563eb",
-          weight: 1.5,
-          opacity: 0.85,
-          dashArray: "3,3",
+          color: "#475569",
+          weight: 1.2,
+          opacity: 0.75,
+          dashArray: "2,2",
           interactive: false
         }).addTo(state.labelGroup);
       }
-      
-      let cardClass = hasMoved ? "leader-marker-card" : (state.labelMode === "compact" ? "static-marker-card compact" : "static-marker-card");
+
+      let cardClass = isCompact 
+        ? "static-marker-card compact" 
+        : (showLeader ? "static-marker-card leader-offset" : "static-marker-card");
+
       let icon = L.divIcon({
         className: "static-map-marker",
         html: `<div class="${cardClass}">${l.html}</div>`,
         iconSize: [l.w, l.h],
-        iconAnchor: [l.w/2, l.h/2]
+        iconAnchor: [l.w / 2, l.h / 2]
       });
       L.marker(targetPos, { icon: icon, interactive: false }).addTo(state.labelGroup);
     });
@@ -1355,6 +1470,55 @@
       `;
       container.appendChild(itemDiv);
     }
+
+    // 特殊値（秘匿 X、欠測・該当なし - / …、未入力）の凡例項目を分離表示
+    let confidentialCount = 0;
+    let missingCount = 0;
+    let unenteredCount = 0;
+
+    AOMORI_MUNICIPALITIES.forEach(m => {
+      let v = getEffectiveValues()[m.name];
+      if (v === "X") {
+        confidentialCount++;
+      } else if (v === "-" || v === "…") {
+        missingCount++;
+      } else if (v === undefined || v === null || isNaN(v) || typeof v !== 'number') {
+        unenteredCount++;
+      }
+    });
+
+    if (confidentialCount > 0 || missingCount > 0 || (unenteredCount > 0 && unenteredCount < 40)) {
+      let divider = document.createElement("div");
+      divider.className = "legend-divider";
+      container.appendChild(divider);
+
+      const appendSpecialLegend = (label, color, count, hasBorderDash = true) => {
+        let itemDiv = document.createElement("div");
+        itemDiv.className = "legend-item legend-item-special";
+        itemDiv.innerHTML = `
+          <div class="legend-swatch-label">
+            <span class="legend-swatch" style="border: 1px ${hasBorderDash ? 'dashed' : 'solid'} #94a3b8; overflow:hidden;">
+              <svg width="100%" height="100%" style="display:block;"><rect width="100%" height="100%" fill="${color}" /></svg>
+            </span>
+            <span class="legend-range-text">${label}</span>
+          </div>
+          <span class="legend-count-badge special">${count}</span>
+        `;
+        container.appendChild(itemDiv);
+      };
+
+      if (confidentialCount > 0) {
+        appendSpecialLegend("秘匿 (X)", "#cbd5e1", confidentialCount, true);
+      }
+      if (missingCount > 0) {
+        appendSpecialLegend("欠測・該当なし", "#e2e8f0", missingCount, true);
+      }
+      if (unenteredCount > 0 && unenteredCount < 40) {
+        appendSpecialLegend("未入力", "#f1f5f9", unenteredCount, false);
+      }
+    }
+
+    renderBoxPlot();
   }
 
   function formatNumber(num) {
@@ -1369,6 +1533,281 @@
     return (num % 1 === 0) ? num.toLocaleString() : num.toFixed(1);
   }
 
+  // --- 11.5 Box Plot Renderer (集団の分散・四分位数可視化) ---
+  function updateBoxplotPosition() {
+    const boxplotBox = document.getElementById("map-boxplot");
+    if (!boxplotBox) return;
+
+    let pos = state.boxplotPosition;
+    if (pos === "auto") {
+      // 凡例が右系（rightmiddle, bottomright, topright）なら「左中」、左系なら「右中」に自動配置
+      if (state.legendPosition && state.legendPosition.includes("right")) {
+        pos = "leftmiddle";
+      } else {
+        pos = "rightmiddle";
+      }
+    }
+
+    boxplotBox.className = `map-boxplot-box position-${pos}${state.showBoxplot ? "" : " hidden"}`;
+  }
+
+  function renderBoxPlot() {
+    const boxplotBox = document.getElementById("map-boxplot");
+    const svg = document.getElementById("boxplot-svg");
+    const statBadge = document.getElementById("display-boxplot-stat");
+    const summaryEl = document.getElementById("boxplot-legend-summary");
+    if (!boxplotBox || !svg) return;
+
+    if (!state.showBoxplot) {
+      boxplotBox.classList.add("hidden");
+      return;
+    } else {
+      boxplotBox.classList.remove("hidden");
+    }
+
+    updateBoxplotPosition();
+
+    const effectiveVals = getEffectiveValues();
+    const validEntries = Object.entries(effectiveVals)
+      .filter(([name, v]) => typeof v === "number" && !isNaN(v));
+
+    if (validEntries.length < 3) {
+      svg.innerHTML = `<text x="80" y="105" text-anchor="middle" font-size="11" fill="#94a3b8">データ不足</text>`;
+      if (statBadge) statBadge.textContent = "未入力";
+      if (summaryEl) summaryEl.innerHTML = `<span>最小: -</span><span>中央: -</span><span>最大: -</span>`;
+      return;
+    }
+
+    const sorted = [...validEntries].sort((a, b) => a[1] - b[1]);
+    const nums = sorted.map(e => e[1]);
+    const n = nums.length;
+    const min = nums[0];
+    const max = nums[n - 1];
+
+    function getPercentile(p) {
+      const idx = p * (n - 1);
+      const low = Math.floor(idx);
+      const high = Math.ceil(idx);
+      const weight = idx - low;
+      return nums[low] * (1 - weight) + nums[high] * weight;
+    }
+
+    const q1 = getPercentile(0.25);
+    const median = getPercentile(0.50);
+    const q3 = getPercentile(0.75);
+    const iqr = (q3 - q1) || 1;
+    const sum = nums.reduce((a, b) => a + b, 0);
+    const mean = sum / n;
+
+    const lowerFence = q1 - 1.5 * iqr;
+    const upperFence = q3 + 1.5 * iqr;
+
+    let lowerWhisker = min;
+    for (let i = 0; i < n; i++) {
+      if (nums[i] >= lowerFence) {
+        lowerWhisker = nums[i];
+        break;
+      }
+    }
+    let upperWhisker = max;
+    for (let i = n - 1; i >= 0; i--) {
+      if (nums[i] <= upperFence) {
+        upperWhisker = nums[i];
+        break;
+      }
+    }
+
+    if (statBadge) {
+      statBadge.textContent = `中央値: ${formatNumber(median)}`;
+    }
+    if (summaryEl) {
+      summaryEl.innerHTML = `
+        <span title="最小値: ${min.toLocaleString()}">Min: ${formatNumber(min)}</span>
+        <span title="第1四分位数: ${q1.toLocaleString()}">Q1: ${formatNumber(q1)}</span>
+        <span title="第3四分位数: ${q3.toLocaleString()}">Q3: ${formatNumber(q3)}</span>
+        <span title="最大値: ${max.toLocaleString()}">Max: ${formatNumber(max)}</span>
+      `;
+    }
+
+    const topY = 20;
+    const bottomY = 190;
+    const plotH = bottomY - topY;
+    const valRange = (max - min) || 1;
+    const y = (v) => bottomY - ((v - min) / valRange) * plotH;
+
+    let svgHtml = "";
+
+    // 1. カラーパレットの階級区分カラーバー（右側: x=92〜100）
+    const breaks = state.computedBreaks;
+    if (breaks && breaks.length >= 2) {
+      svgHtml += `<g class="boxplot-color-strip">`;
+      for (let i = 0; i < breaks.length - 1; i++) {
+        let b1 = Math.max(min, Math.min(max, breaks[i]));
+        let b2 = Math.max(min, Math.min(max, breaks[i + 1]));
+        let yTop = y(b2);
+        let yBot = y(b1);
+        let h = Math.max(1, yBot - yTop);
+        let midVal = (b1 + b2) / 2;
+        let col = getColorForValue(midVal);
+        svgHtml += `<rect x="92" y="${yTop.toFixed(1)}" width="8" height="${h.toFixed(1)}" fill="${col}" opacity="0.85" rx="1.5" />`;
+      }
+      svgHtml += `</g>`;
+    }
+
+    // 2. 箱ひげ図
+    const boxLeft = 42;
+    const boxRight = 80;
+    const boxCenter = (boxLeft + boxRight) / 2;
+    const boxWidth = boxRight - boxLeft;
+
+    const yMin = y(lowerWhisker);
+    const yMax = y(upperWhisker);
+    const yQ1 = y(q1);
+    const yQ3 = y(q3);
+    const yMed = y(median);
+    const yMean = y(mean);
+
+    // 下ひげ線 & 端バー
+    svgHtml += `
+      <!-- Lower Whisker -->
+      <line x1="${boxCenter}" y1="${yQ1.toFixed(1)}" x2="${boxCenter}" y2="${yMin.toFixed(1)}" stroke="#64748b" stroke-width="1.5" stroke-dasharray="3 2" />
+      <line x1="${boxCenter - 10}" y1="${yMin.toFixed(1)}" x2="${boxCenter + 10}" y2="${yMin.toFixed(1)}" stroke="#64748b" stroke-width="1.5" />
+      
+      <!-- Upper Whisker -->
+      <line x1="${boxCenter}" y1="${yQ3.toFixed(1)}" x2="${boxCenter}" y2="${yMax.toFixed(1)}" stroke="#64748b" stroke-width="1.5" stroke-dasharray="3 2" />
+      <line x1="${boxCenter - 10}" y1="${yMax.toFixed(1)}" x2="${boxCenter + 10}" y2="${yMax.toFixed(1)}" stroke="#64748b" stroke-width="1.5" />
+    `;
+
+    // 箱（IQR）
+    const boxH = Math.max(2, yQ1 - yQ3);
+    svgHtml += `
+      <!-- Box (IQR) -->
+      <rect x="${boxLeft}" y="${yQ3.toFixed(1)}" width="${boxWidth}" height="${boxH.toFixed(1)}" fill="#f8fafc" stroke="#334155" stroke-width="1.5" rx="3" />
+    `;
+
+    // 中央値（赤ライン）
+    svgHtml += `
+      <!-- Median Line -->
+      <line x1="${boxLeft}" y1="${yMed.toFixed(1)}" x2="${boxRight}" y2="${yMed.toFixed(1)}" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round" />
+    `;
+
+    // 平均値（青◆マーカー）
+    svgHtml += `
+      <!-- Mean Diamond -->
+      <polygon points="${boxCenter},${(yMean - 4).toFixed(1)} ${boxCenter + 4},${yMean.toFixed(1)} ${boxCenter},${(yMean + 4).toFixed(1)} ${boxCenter - 4},${yMean.toFixed(1)}" fill="#2563eb" stroke="#ffffff" stroke-width="1" />
+    `;
+
+    // 3. 全自治体のジッタードット（x=108〜138）
+    svgHtml += `<g class="boxplot-dots">`;
+    sorted.forEach((entry, idx) => {
+      let muniName = entry[0];
+      let val = entry[1];
+      let cy = y(val);
+      let jitter = ((idx * 37) % 24) - 12;
+      let cx = 122 + jitter;
+      let color = getColorForValue(val);
+      let isOutlier = (val < lowerWhisker || val > upperWhisker);
+
+      svgHtml += `
+        <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${isOutlier ? '3.5' : '2.5'}"
+                fill="${color}" stroke="${isOutlier ? '#dc2626' : '#ffffff'}" stroke-width="${isOutlier ? '1.5' : '0.8'}"
+                opacity="0.85" style="cursor:pointer;"
+                data-name="${muniName}" data-val="${val}">
+          <title>${muniName}: ${val.toLocaleString()}${isOutlier ? ' (外れ値)' : ''}</title>
+        </circle>
+      `;
+    });
+    svgHtml += `</g>`;
+
+    // 4. 左側の目盛りラベル
+    svgHtml += `
+      <!-- Axis labels -->
+      <text x="36" y="${Math.min(topY + 3, y(max) + 3).toFixed(1)}" text-anchor="end" font-size="8.5" fill="#64748b" font-weight="600">${formatNumber(max)}</text>
+      <text x="36" y="${Math.max(bottomY - 2, y(min) + 3).toFixed(1)}" text-anchor="end" font-size="8.5" fill="#64748b" font-weight="600">${formatNumber(min)}</text>
+      <text x="36" y="${yMed.toFixed(1)}" text-anchor="end" font-size="8.5" fill="#dc2626" font-weight="700">${formatNumber(median)}</text>
+    `;
+
+    // 5. ホバー時のハイライトグループ
+    svgHtml += `<g id="boxplot-hover-group" style="display:none; pointer-events:none;"></g>`;
+
+    svg.innerHTML = svgHtml;
+
+    svg.querySelectorAll("circle[data-name]").forEach(c => {
+      c.addEventListener("mouseenter", (e) => {
+        let name = e.target.getAttribute("data-name");
+        let val = parseFloat(e.target.getAttribute("data-val"));
+        setBoxplotHover(name, val);
+        highlightMunicipalityOnMap(name);
+      });
+      c.addEventListener("mouseleave", () => {
+        clearBoxplotHover();
+        resetMunicipalityHighlightOnMap();
+      });
+    });
+
+    if (state.hoveredMunicipality && effectiveVals[state.hoveredMunicipality] !== undefined) {
+      setBoxplotHover(state.hoveredMunicipality, effectiveVals[state.hoveredMunicipality]);
+    }
+  }
+
+  function setBoxplotHover(muniName, val) {
+    const hoverGroup = document.getElementById("boxplot-hover-group");
+    if (!hoverGroup) return;
+
+    const effectiveVals = getEffectiveValues();
+    const nums = Object.values(effectiveVals).filter(v => typeof v === "number" && !isNaN(v));
+    if (nums.length === 0) return;
+
+    const min = Math.min(...nums);
+    const max = Math.max(...nums);
+    const topY = 20;
+    const bottomY = 190;
+    const plotH = bottomY - topY;
+    const valRange = (max - min) || 1;
+    const cy = bottomY - ((val - min) / valRange) * plotH;
+
+    hoverGroup.style.display = "block";
+    hoverGroup.innerHTML = `
+      <line x1="5" y1="${cy.toFixed(1)}" x2="155" y2="${cy.toFixed(1)}" stroke="#0284c7" stroke-width="1.8" stroke-dasharray="3 2" />
+      <rect x="2" y="${(cy - 9).toFixed(1)}" width="76" height="18" fill="#0284c7" rx="3" />
+      <text x="40" y="${(cy + 3.5).toFixed(1)}" fill="#ffffff" font-size="8.5" font-weight="700" text-anchor="middle">
+        ${muniName} ${formatNumber(val)}
+      </text>
+    `;
+  }
+
+  function clearBoxplotHover() {
+    const hoverGroup = document.getElementById("boxplot-hover-group");
+    if (hoverGroup) {
+      hoverGroup.style.display = "none";
+      hoverGroup.innerHTML = "";
+    }
+  }
+
+  function highlightMunicipalityOnMap(muniName) {
+    if (!state.geojsonLayer) return;
+    state.geojsonLayer.eachLayer(layer => {
+      let rawName = layer.feature.properties.name || layer.feature.properties.N03_004;
+      let norm = normalizeName(rawName) || rawName;
+      if (norm === muniName) {
+        let currentWeight = (layer.options && layer.options.weight) || 1.2;
+        layer.setStyle({
+          weight: currentWeight + 2.5,
+          color: "#0284c7",
+          fillOpacity: 1.0
+        });
+        layer.bringToFront();
+      }
+    });
+  }
+
+  function resetMunicipalityHighlightOnMap() {
+    if (!state.geojsonLayer) return;
+    state.geojsonLayer.eachLayer(layer => {
+      state.geojsonLayer.resetStyle(layer);
+    });
+  }
+
   // --- 12. Statistics Engine ---
   function updateStatsSummary() {
     const vals = Object.entries(getEffectiveValues())
@@ -1381,8 +1820,19 @@
     const maxEl = document.getElementById("stat-max");
     const minEl = document.getElementById("stat-min");
 
-    countEl.textContent = `${vals.length} / 40`;
-    countEl.className = vals.length === 40 ? "stat-value text-blue" : "stat-value text-orange";
+    let specialCount = 0;
+    Object.values(getEffectiveValues()).forEach(v => {
+      if (isSpecialValue(v)) specialCount++;
+    });
+
+    if (specialCount > 0) {
+      countEl.innerHTML = `${vals.length} <small style="font-size:0.75rem; color:#d97706; font-weight:700;">(秘匿等${specialCount})</small>`;
+      countEl.title = `有効数値データ: ${vals.length} 自治体 / 秘匿・欠測等: ${specialCount} 自治体`;
+    } else {
+      countEl.textContent = `${vals.length} / 40`;
+      countEl.title = `有効数値データ: ${vals.length} 自治体`;
+    }
+    countEl.className = (vals.length + specialCount) === 40 ? "stat-value text-blue" : "stat-value text-orange";
 
     if (vals.length === 0) {
       sumEl.textContent = "-";
@@ -1421,6 +1871,7 @@
     minEl.title = `${minEntry[0]}: ${minEntry[1].toLocaleString()}`;
 
     renderDistributionChart(vals);
+    renderBoxPlot();
   }
 
   // --- SVG Histogram & Kernel Density Curve Renderer ---
@@ -1679,10 +2130,17 @@
     const extraEl = document.getElementById("detail-muni-extra");
 
     const val = getEffectiveValues()[muniName];
-    if (val === undefined || val === null || isNaN(val)) {
+    if (val === undefined || val === null || isNaN(val) || typeof val !== 'number') {
       nameEl.textContent = muniName;
-      valEl.innerHTML = `データなし`;
-      extraEl.textContent = "未入力";
+      if (isSpecialValue(val)) {
+        valEl.innerHTML = `<span style="color:#d97706; font-size:1.1rem; font-weight:800;">${getSpecialValueLabel(val)}</span>`;
+        extraEl.textContent = (val === "X") 
+          ? "※ 秘匿（特定企業秘密保護のため非公開・統計集計対象外）" 
+          : "※ 欠測・該当数字なし（統計集計対象外）";
+      } else {
+        valEl.innerHTML = `データなし`;
+        extraEl.textContent = "未入力自治体";
+      }
       card.classList.remove("hidden");
       return;
     }
@@ -1718,7 +2176,8 @@
     const tbody = document.getElementById("data-table-body");
     tbody.innerHTML = "";
 
-    let matchedCount = 0;
+    let numericCount = 0;
+    let specialCount = 0;
     const filterQuery = (document.getElementById("table-search")?.value || "").trim().toLowerCase();
 
     let visibleCount = 0;
@@ -1733,8 +2192,10 @@
       }
 
       let val = getEffectiveValues()[m.name];
-      let hasVal = (val !== undefined && val !== null && !isNaN(val));
-      if (hasVal) matchedCount++;
+      let hasVal = isNumericValue(val);
+      let isSpecial = isSpecialValue(val);
+      if (hasVal) numericCount++;
+      if (isSpecial) specialCount++;
 
       let tr = document.createElement("tr");
       tr.setAttribute("data-name", m.name);
@@ -1744,11 +2205,16 @@
         visibleCount++;
       }
 
-      let valInputStr = hasVal ? val : "";
+      let valInputStr = (hasVal || isSpecial) ? val : "";
+      let statusIcon = hasVal 
+        ? '<i class="fa-solid fa-circle-check text-green" title="数値入力済"></i>' 
+        : (isSpecial ? `<i class="fa-solid fa-shield-halved text-amber" title="${getSpecialValueLabel(val)}"></i>` : '<i class="fa-solid fa-circle-minus text-muted" title="未入力"></i>');
+
+      let specialInputClass = isSpecial ? "is-special" : "";
 
       tr.innerHTML = `
         <td style="text-align:center;">
-          ${hasVal ? '<i class="fa-solid fa-circle-check text-green" title="入力済"></i>' : '<i class="fa-solid fa-circle-minus text-muted" title="未入力"></i>'}
+          ${statusIcon}
         </td>
         <td style="font-family:var(--font-mono); color:#64748b; font-size:0.75rem;">${m.code}</td>
         <td>
@@ -1758,7 +2224,7 @@
           <span class="badge ${m.type === '市' ? 'badge-primary' : 'badge-secondary'}" style="background:#f1f5f9; color:#475569; border:1px solid #e2e8f0;">${m.type}</span>
         </td>
         <td style="text-align:right;">
-          <input type="text" inputmode="decimal" class="cell-val-input ${hasVal ? '' : 'is-empty'}" data-name="${m.name}" value="${valInputStr}" placeholder="未入力">
+          <input type="text" inputmode="decimal" class="cell-val-input ${hasVal || isSpecial ? '' : 'is-empty'} ${specialInputClass}" data-name="${m.name}" value="${valInputStr}" placeholder="未入力">
         </td>
       `;
 
@@ -1769,15 +2235,23 @@
     tbody.querySelectorAll(".cell-val-input").forEach(input => {
       input.addEventListener("input", (e) => {
         let name = e.target.getAttribute("data-name");
-        let rawVal = e.target.value.replace(/,/g, "").trim();
+        let rawVal = e.target.value.trim();
         if (rawVal === "") {
           delete state.currentValues[name];
           e.target.classList.add("is-empty");
+          e.target.classList.remove("is-special");
         } else {
-          let num = parseFloat(rawVal);
+          let cleanVal = rawVal.replace(/,/g, "");
+          let num = parseFloat(cleanVal);
+          let sp = normalizeSpecialValue(cleanVal);
           if (!isNaN(num)) {
             state.currentValues[name] = num;
             e.target.classList.remove("is-empty");
+            e.target.classList.remove("is-special");
+          } else if (sp) {
+            state.currentValues[name] = sp;
+            e.target.classList.remove("is-empty");
+            e.target.classList.add("is-special");
           }
         }
         renderGeoJSONLayer();
@@ -1788,8 +2262,11 @@
 
     const badge = document.getElementById("match-badge");
     if (badge) {
-      badge.textContent = `${matchedCount} / 40 入力済`;
-      badge.className = matchedCount === 40 ? "badge badge-success" : "badge badge-warning";
+      let totalEntered = numericCount + specialCount;
+      badge.textContent = specialCount > 0 
+        ? `${totalEntered}/40 (数値${numericCount}・秘匿等${specialCount})` 
+        : `${totalEntered} / 40 入力済`;
+      badge.className = totalEntered === 40 ? "badge badge-success" : "badge badge-warning";
     }
 
     const filterLabel = document.getElementById("filtered-count-label");
@@ -1799,25 +2276,31 @@
   }
 
   function updateTableStatusBadges() {
-    let matchedCount = 0;
+    let numericCount = 0;
+    let specialCount = 0;
     document.querySelectorAll(".data-table tbody tr").forEach(tr => {
       let name = tr.getAttribute("data-name");
       let val = state.currentValues[name];
-      let hasVal = (val !== undefined && val !== null && !isNaN(val));
-      if (hasVal) matchedCount++;
+      let hasVal = isNumericValue(val);
+      let isSpecial = isSpecialValue(val);
+      if (hasVal) numericCount++;
+      if (isSpecial) specialCount++;
 
       let statusTd = tr.querySelector("td:first-child");
       if (statusTd) {
         statusTd.innerHTML = hasVal 
-          ? '<i class="fa-solid fa-circle-check text-green" title="入力済"></i>' 
-          : '<i class="fa-solid fa-circle-minus text-muted" title="未入力"></i>';
+          ? '<i class="fa-solid fa-circle-check text-green" title="数値入力済"></i>' 
+          : (isSpecial ? `<i class="fa-solid fa-shield-halved text-amber" title="${getSpecialValueLabel(val)}"></i>` : '<i class="fa-solid fa-circle-minus text-muted" title="未入力"></i>');
       }
     });
 
     const badge = document.getElementById("match-badge");
     if (badge) {
-      badge.textContent = `${matchedCount} / 40 入力済`;
-      badge.className = matchedCount === 40 ? "badge badge-success" : "badge badge-warning";
+      let totalEntered = numericCount + specialCount;
+      badge.textContent = specialCount > 0 
+        ? `${totalEntered}/40 (数値${numericCount}・秘匿等${specialCount})` 
+        : `${totalEntered} / 40 入力済`;
+      badge.className = totalEntered === 40 ? "badge badge-success" : "badge badge-warning";
     }
   }
 
@@ -2023,6 +2506,30 @@
     banner.classList.remove("hidden");
   }
 
+  function parseCSVLine(line, sep = ",") {
+    let result = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      let c = line[i];
+      if (c === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (c === sep && !inQuotes) {
+        result.push(cur.trim());
+        cur = "";
+      } else {
+        cur += c;
+      }
+    }
+    result.push(cur.trim());
+    return result;
+  }
+
   function parseRawText(rawText, sourceName) {
     if (!rawText || !rawText.trim()) return;
     if (rawText.charCodeAt(0) === 0xFEFF) {
@@ -2038,7 +2545,7 @@
 
     let firstLine = lines[0];
     let sep = firstLine.includes("\t") ? "\t" : ",";
-    let headerParts = firstLine.split(sep).map(s => s.trim().replace(/^[\uFEFF"']|["']$/g, ""));
+    let headerParts = parseCSVLine(firstLine, sep).map(s => s.replace(/^[\uFEFF"']|["']$/g, ""));
 
     let nameColIdx = headerParts.findIndex(h => /市町村|自治体|名称|市区町村|name/i.test(h));
     if (nameColIdx === -1) {
@@ -2053,18 +2560,62 @@
     });
 
     if (valCols.length > 1) {
+      // 市町村列に「単位」「出典」があるメタデータ行を探索
+      let unitRowParts = null;
+      let sourceRowParts = null;
+      let metaRowIndices = new Set();
+
+      for (let i = 1; i < lines.length; i++) {
+        let parts = parseCSVLine(lines[i], sep).map(s => s.replace(/^["']|["']$/g, "").trim());
+        let nameCand = (parts[nameColIdx] || "").replace(/[\s　]+/g, "");
+        if (/^(単位|数値の単位)$/i.test(nameCand)) {
+          unitRowParts = parts;
+          metaRowIndices.add(i);
+        } else if (/^(出典|データ出典|ソース|備考|備考欄)$/i.test(nameCand)) {
+          sourceRowParts = parts;
+          metaRowIndices.add(i);
+        }
+      }
+
       let addedKeys = [];
       valCols.forEach(col => {
         let varKey = "custom_" + col.name.replace(/[^a-zA-Z0-9_\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/g, "_");
         let varData = {};
+
+        // 単位の抽出
+        let colUnit = "";
+        if (unitRowParts && unitRowParts[col.idx] !== undefined) {
+          colUnit = unitRowParts[col.idx].trim().replace(/^単位[：:]\s*/, "");
+        }
+
+        // 出典の抽出
+        let colSource = "";
+        if (sourceRowParts) {
+          if (sourceRowParts[col.idx] && sourceRowParts[col.idx].trim()) {
+            colSource = sourceRowParts[col.idx].trim();
+          } else {
+            // 列個別に出典がなく、行内の他の列に代表して書かれている場合
+            for (let j = 0; j < sourceRowParts.length; j++) {
+              if (j !== nameColIdx && sourceRowParts[j] && sourceRowParts[j].trim()) {
+                colSource = sourceRowParts[j].trim();
+                break;
+              }
+            }
+          }
+        }
+
         for (let i = 1; i < lines.length; i++) {
-          let parts = lines[i].split(sep).map(s => s.trim().replace(/[,\s"']/g, ""));
-          let nameCand = parts[nameColIdx];
+          if (metaRowIndices.has(i)) continue; // メタデータ行は自治体データ処理から除外
+
+          let parts = parseCSVLine(lines[i], sep);
+          let nameCand = parts[nameColIdx] ? parts[nameColIdx].trim().replace(/^["']|["']$/g, "") : "";
           let normInfo = normalizeNameInfo(nameCand);
           if (normInfo.matched && parts[col.idx] !== undefined) {
-            let num = parseFloat(parts[col.idx]);
-            if (!isNaN(num)) {
-              varData[normInfo.matched] = num;
+            let cleanVal = parts[col.idx].trim().replace(/[,\s"']/g, "");
+            let num = parseFloat(cleanVal);
+            let sp = normalizeSpecialValue(cleanVal);
+            if (!isNaN(num) || sp) {
+              varData[normInfo.matched] = !isNaN(num) ? num : sp;
               totalParsedRows++;
               if (normInfo.type === "suffix_completed") {
                 if (!suffixCompleted.some(a => a.original === nameCand)) {
@@ -2080,15 +2631,25 @@
             if (!unmatched.includes(nameCand)) unmatched.push(nameCand);
           }
         }
+
         if (Object.keys(varData).length > 0) {
+          let remarksText = "";
+          if (colSource) {
+            remarksText = /^※|出典/i.test(colSource) ? colSource : `※ 出典：${colSource}`;
+          } else if (sourceName) {
+            remarksText = `※ 出典：${sourceName}`;
+          } else {
+            remarksText = "※ 出典：インポートデータ";
+          }
+
           state.variables[varKey] = {
             id: varKey,
             name: col.name,
             label: `📁 ${col.name}`,
-            unit: "",
-            title: `青森県 市町村別 ${col.name}`,
+            unit: colUnit,
+            title: `市町村別 ${col.name}`,
             subtitle: "インポートデータに基づく可視化",
-            remarks: sourceName ? `※ 出典：${sourceName}` : "※ 出典：インポートデータ",
+            remarks: remarksText,
             palette: "blues",
             data: varData
           };
@@ -2107,24 +2668,55 @@
 
     const newVals = {};
     let count = 0;
+    let singleUnit = "";
+    let singleSource = "";
+
     lines.forEach(line => {
-      let parts = line.split(/[\t,;]+/);
+      let parts = parseCSVLine(line, sep.length === 1 ? sep : ",");
+      if (parts.length < 2) {
+        parts = line.split(/[\t,;]+/);
+      }
       if (parts.length >= 2) {
-        let nameCandidate = parts[0].trim();
-        let valCandidate = parts[1].trim().replace(/[,\s"']/g, "");
+        let raw0 = (parts[0] || "").trim().replace(/^["']|["']$/g, "");
+        let raw1 = (parts[1] || "").trim().replace(/^["']|["']$/g, "");
+        let clean0 = raw0.replace(/[\s　]+/g, "");
+        let clean1 = raw1.replace(/[\s　]+/g, "");
+
+        // 単位行の検出
+        if (/^(単位|数値の単位)$/i.test(clean0)) {
+          singleUnit = raw1.replace(/^単位[：:]\s*/, "");
+          return;
+        } else if (/^(単位|数値の単位)$/i.test(clean1)) {
+          singleUnit = raw0.replace(/^単位[：:]\s*/, "");
+          return;
+        }
+
+        // 出典行の検出
+        if (/^(出典|データ出典|ソース|備考|備考欄)$/i.test(clean0)) {
+          singleSource = parts.slice(1).join(" ").trim().replace(/^["']|["']$/g, "");
+          return;
+        } else if (/^(出典|データ出典|ソース|備考|備考欄)$/i.test(clean1)) {
+          singleSource = raw0;
+          return;
+        }
+
+        let nameCandidate = raw0;
+        let valCandidate = raw1.replace(/[,\s"']/g, "");
         let normInfo = normalizeNameInfo(nameCandidate);
         let num = parseFloat(valCandidate);
+        let sp = normalizeSpecialValue(valCandidate);
 
-        if (!normInfo.matched && isNaN(num) && parts.length >= 2) {
-          let altName = parts[1].trim();
-          let altVal = parts[0].trim().replace(/[,\s"']/g, "");
+        if (!normInfo.matched && isNaN(num) && !sp && parts.length >= 2) {
+          let altName = raw1;
+          let altVal = raw0.replace(/[,\s"']/g, "");
           normInfo = normalizeNameInfo(altName);
           num = parseFloat(altVal);
+          sp = normalizeSpecialValue(altVal);
           if (normInfo.matched) nameCandidate = altName;
         }
 
-        if (normInfo.matched && !isNaN(num)) {
-          newVals[normInfo.matched] = num;
+        if (normInfo.matched && (!isNaN(num) || sp)) {
+          newVals[normInfo.matched] = !isNaN(num) ? num : sp;
           count++;
           if (normInfo.type === "suffix_completed") {
             if (!suffixCompleted.some(a => a.original === nameCandidate)) {
@@ -2144,14 +2736,23 @@
     if (count > 0) {
       const varKey = "custom_data";
       state.variables = {};
+      let finalRemarks = "";
+      if (singleSource) {
+        finalRemarks = /^※|出典/i.test(singleSource) ? singleSource : `※ 出典：${singleSource}`;
+      } else if (sourceName) {
+        finalRemarks = `※ 出典：${sourceName}`;
+      } else {
+        finalRemarks = "※ 出典：インポートデータ";
+      }
+
       state.variables[varKey] = {
         id: varKey,
         name: "取り込みデータ",
         label: "📁 取り込みデータ",
-        unit: "",
-        title: "青森県 市町村別統計マップ",
+        unit: singleUnit,
+        title: "市町村別統計マップ",
         subtitle: "取り込みデータに基づく可視化",
-        remarks: sourceName ? `※ 出典：${sourceName}` : "※ 出典：インポートデータ",
+        remarks: finalRemarks,
         palette: "blues",
         data: newVals
       };
@@ -2182,7 +2783,7 @@
     let csv = `\uFEFF自治体コード,市町村名,区分,${colName}\n`;
     AOMORI_MUNICIPALITIES.forEach(m => {
       let v = getEffectiveValues()[m.name];
-      let valStr = (v !== undefined && v !== null && !isNaN(v)) ? v : "";
+      let valStr = isNumericValue(v) ? v : (isSpecialValue(v) ? v : "");
       csv += `${m.code},${m.name},${m.type},${valStr}\n`;
     });
 
@@ -3065,7 +3666,31 @@
       state.legendPosition = e.target.value;
       const legendBox = document.getElementById("map-legend");
       legendBox.className = `map-legend-box position-${state.legendPosition}`;
+      updateBoxplotPosition();
     });
+
+    // Box Plot Toggle & Position Select
+    const chkShowBoxplot = document.getElementById("chk-show-boxplot");
+    if (chkShowBoxplot) {
+      chkShowBoxplot.addEventListener("change", (e) => {
+        state.showBoxplot = e.target.checked;
+        const boxplotBox = document.getElementById("map-boxplot");
+        if (boxplotBox) {
+          boxplotBox.classList.toggle("hidden", !state.showBoxplot);
+        }
+        if (state.showBoxplot) {
+          renderBoxPlot();
+        }
+      });
+    }
+
+    const boxplotPosSelect = document.getElementById("boxplot-position-select");
+    if (boxplotPosSelect) {
+      boxplotPosSelect.addEventListener("change", (e) => {
+        state.boxplotPosition = e.target.value;
+        updateBoxplotPosition();
+      });
+    }
 
     // Export Scale Select
     const scaleSelect = document.getElementById("select-export-scale");
@@ -3131,16 +3756,6 @@
     const regionSideSelect = document.getElementById("select-sidebar-region");
     if (regionSideSelect) {
       regionSideSelect.addEventListener("change", (e) => handleRegionChange(e.target.value));
-    }
-
-    // Theme Toggle Button
-    const themeBtn = document.getElementById("btn-toggle-theme");
-    if (themeBtn) {
-      themeBtn.addEventListener("click", () => {
-        state.mapBg = (state.mapBg === "minimal-dark") ? "none" : "minimal-dark";
-        document.getElementById("select-map-bg").value = state.mapBg;
-        updateMapBackgroundTile();
-      });
     }
 
     // Detail Card Close Button

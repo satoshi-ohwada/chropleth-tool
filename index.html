@@ -693,7 +693,7 @@
 
                 <div class="form-group">
                   <label for="map-title-input">マップタイトル</label>
-                  <input type="text" id="map-title-input" class="form-control" value="青森県 市町村別総人口分布（2023年推計）">
+                  <input type="text" id="map-title-input" class="form-control" value="市町村別総人口分布（2023年推計）">
                 </div>
 
                 <div class="form-group mt-3">
@@ -748,10 +748,11 @@
                   <label for="select-label-mode">ラベル表示スタイル</label>
                   <select id="select-label-mode" class="form-control">
                     <option value="none" selected>表示しない（クリーンな地図）</option>
-                    <option value="cities_only">主要10市のみ表示</option>
-                    <option value="compact">全40自治体コンパクト表示</option>
-                    <option value="all">全40自治体標準表示（重なり自動回避）</option>
+                    <option value="cities_only">主要10市のみ表示（すっきり・重なりなし）</option>
+                    <option value="compact">全40自治体 コンパクト表示（推奨：領域内にスマート収容）</option>
+                    <option value="all">全40自治体 標準表示（領域制限・重なり自動調整）</option>
                   </select>
+                  <small class="text-muted mt-1 d-block" id="label-mode-hint" style="font-size:0.75rem;">※ 「コンパクト表示」は各自治体の領域内ですっきり収まるインライン形式です。</small>
                 </div>
                 <div class="form-group mb-0 mt-3" id="label-content-group">
                   <label>ラベルの表示内容</label>
@@ -769,7 +770,7 @@
               </div>
             </div>
 
-            <div class="card">
+            <div class="card mb-3">
               <div class="card-header">
                 <h3><i class="fa-solid fa-vector-square"></i> 凡例（レジェンド）の配置</h3>
               </div>
@@ -783,6 +784,28 @@
                     <option value="bottomleft">左下</option>
                     <option value="topright">右上</option>
                     <option value="topleft">左上</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <h3><i class="fa-solid fa-chart-column"></i> 分布図（箱ひげ図）の設定</h3>
+              </div>
+              <div class="card-body">
+                <div class="form-check mb-2">
+                  <input type="checkbox" id="chk-show-boxplot" class="form-check-input" checked>
+                  <label for="chk-show-boxplot" class="form-check-label fw-bold">地図画像上に分布（箱ひげ図）を表示する</label>
+                </div>
+                <div class="form-group mt-2">
+                  <label for="boxplot-position-select">箱ひげ図の表示位置</label>
+                  <select id="boxplot-position-select" class="form-control">
+                    <option value="auto" selected>凡例の反対側の中段（自動）</option>
+                    <option value="leftmiddle">左中（日本海側）</option>
+                    <option value="rightmiddle">右中（太平洋側）</option>
+                    <option value="bottomleft">左下</option>
+                    <option value="bottomright">右下</option>
                   </select>
                 </div>
               </div>
@@ -911,7 +934,7 @@
 
           <!-- Header Overlay inside Map -->
           <div class="map-overlay-header">
-            <h2 id="display-map-title">青森県 市町村別総人口分布（2023年推計）</h2>
+            <h2 id="display-map-title">市町村別総人口分布（2023年推計）</h2>
             <div class="map-subtitle-row">
               <p id="display-map-subtitle">全40市町村における人口集積と地域偏在の可視化</p>
               <span id="display-map-mode-tag" class="map-mode-text"></span>
@@ -929,6 +952,22 @@
             </div>
             <div id="legend-items-container" class="legend-items">
               <!-- Dynamically populated by JS -->
+            </div>
+          </div>
+
+          <!-- Dynamic Box Plot Overlay (Dispersion / Quartiles) -->
+          <div id="map-boxplot" class="map-boxplot-box position-leftmiddle">
+            <div class="boxplot-header">
+              <span class="boxplot-title"><i class="fa-solid fa-chart-simple text-blue me-1"></i>分布 (箱ひげ図)</span>
+              <span id="display-boxplot-stat" class="boxplot-badge">中央値: -</span>
+            </div>
+            <div class="boxplot-body">
+              <svg id="boxplot-svg" viewBox="0 0 160 210" width="100%" height="auto"></svg>
+            </div>
+            <div id="boxplot-legend-summary" class="boxplot-summary">
+              <span>最小: -</span>
+              <span>中央: -</span>
+              <span>最大: -</span>
             </div>
           </div>
 
@@ -958,10 +997,6 @@
               <option value="nanbu">🌾 県南全体 (三八上北)</option>
             </select>
           </div>
-
-          <button id="btn-toggle-theme" class="map-floating-btn" title="キャンバス背景の切替 (ライト/ダーク)">
-            <i class="fa-solid fa-circle-half-stroke"></i>
-          </button>
         </div>
 
         <!-- Municipality Details Popup Card -->
