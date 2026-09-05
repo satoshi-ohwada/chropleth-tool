@@ -1192,12 +1192,13 @@ input[type="number"] {
   position: absolute;
   z-index: 500;
   background: #ffffff;
-  padding: 1cqw 1.2cqw;
-  border-radius: 0.9cqw;
+  padding: 0.6cqw 0.75cqw;
+  border-radius: 0.8cqw;
   border: 1px solid #cbd5e1;
-  box-shadow: 0 0.6cqw 2cqw rgba(0, 0, 0, 0.08);
-  width: 17.5cqw;
-  min-width: 140px;
+  box-shadow: 0 0.5cqw 1.8cqw rgba(0, 0, 0, 0.08);
+  width: 14.5cqw;
+  min-width: 120px;
+  max-width: 165px;
   pointer-events: auto;
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
@@ -1208,24 +1209,24 @@ input[type="number"] {
 
 .map-boxplot-box.position-leftmiddle {
   top: 50%;
-  left: 1.8cqw;
+  left: 1.2cqw;
   transform: translateY(-50%);
 }
 
 .map-boxplot-box.position-rightmiddle {
   top: 50%;
-  right: 1.8cqw;
+  right: 1.2cqw;
   transform: translateY(-50%);
 }
 
 .map-boxplot-box.position-bottomleft {
   bottom: 4.5cqw;
-  left: 1.8cqw;
+  left: 1.2cqw;
 }
 
 .map-boxplot-box.position-bottomright {
   bottom: 1.8cqw;
-  right: 1.8cqw;
+  right: 1.2cqw;
 }
 
 .map-boxplot-box.position-topleft {
@@ -1242,27 +1243,31 @@ input[type="number"] {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5cqw;
-  margin-bottom: 0.4cqw;
-  padding-bottom: 0.4cqw;
-  border-bottom: 1.5px solid #cbd5e1;
+  gap: 0.3cqw;
+  margin-bottom: 0.25cqw;
+  padding-bottom: 0.25cqw;
+  border-bottom: 1px solid #cbd5e1;
 }
 
 .boxplot-title {
-  font-size: 1.15cqw;
+  font-size: 0.95cqw;
   font-weight: 700;
   color: #0f172a;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .boxplot-badge {
-  font-size: 0.85cqw;
-  font-weight: 600;
+  font-size: 0.78cqw;
+  font-weight: 700;
   background: #eff6ff;
   color: #1d4ed8;
-  padding: 0.15cqw 0.5cqw;
-  border-radius: 0.4cqw;
+  padding: 0.1cqw 0.35cqw;
+  border-radius: 0.3cqw;
+  border: 1px solid #bfdbfe;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .boxplot-body {
@@ -1272,11 +1277,34 @@ input[type="number"] {
 .boxplot-summary {
   display: flex;
   justify-content: space-between;
-  font-size: 0.8cqw;
-  color: #64748b;
-  margin-top: 0.3cqw;
-  padding-top: 0.3cqw;
+  align-items: center;
+  font-size: 0.72cqw;
+  color: #475569;
+  margin-top: 0.25cqw;
+  padding-top: 0.25cqw;
   border-top: 1px dashed #cbd5e1;
+}
+
+.boxplot-summary span {
+  white-space: nowrap;
+}
+
+.boxplot-summary b {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.boxplot-summary .stat-med,
+.boxplot-summary .stat-med b {
+  color: #dc2626;
+}
+
+.map-export-frame.theme-dark .boxplot-summary b {
+  color: #f8fafc;
+}
+.map-export-frame.theme-dark .boxplot-summary .stat-med,
+.map-export-frame.theme-dark .boxplot-summary .stat-med b {
+  color: #f87171;
 }
 
 /* Floating Controls */
